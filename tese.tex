@@ -95,103 +95,36 @@
 % em português, essa é a língua do título e "translatedtitle" se refere ao
 % título em inglês; se seu trabalho está escrito em inglês, essa é a língua
 % do título e "translatedtitle" se refere ao título em português.
-\title{Título do trabalho}[um subtítulo]
+\title{Gerenciamento da Evolução Semântica em Bancos de Dados Distribuídos}
 \translatedtitle{Title of the document}[a subtitle]
 
-\author[fem]{Nome Completo}
+\author{Gustavo Vaz Pinto}
 
 \def\profa{Prof\kern.02em.\kern-.07emª\kern.07em}
 \def\dra{Dr\kern-.04em.\kern-.11emª\kern.07em}
 
 % Para TCCs, este comando define o supervisor
-\orientador[fem]{\profa{} \dra{} Fulana de Tal}
-
-% Se não houver, remova; se houver mais de um, basta
-% repetir o comando quantas vezes forem necessárias
-\coorientador{Prof. Dr. Ciclano de Tal}
-\coorientador[fem]{\profa{} \dra{} Beltrana de Tal}
+\orientador[fem]{\profa{} \dra{} Kelly Braghetto}
 
 \banca{
-  \profa{} \dra{} Fulana de Tal (orientadora) -- IME-USP [sem ponto final],
+  \profa{} \dra{} Kelly Braghetto (orientadora) -- IME-USP [sem ponto final],
   % Em inglês, não há o "ª"
   %Prof. Dr. Fulana de Tal (advisor) -- IME-USP [sem ponto final],
   Prof. Dr. Ciclano de Tal -- IME-USP [sem ponto final],
   \profa{} \dra{} Convidada de Tal -- IMPA [sem ponto final],
 }
 
-% A página de rosto da versão para depósito (ou seja, a versão final
-% antes da defesa) deve ser diferente da página de rosto da versão
-% definitiva (ou seja, a versão final após a incorporação das sugestões
-% da banca).
 \tipotese{
-  mestrado,
-  %doutorado,
-  %tcc,
-  %definitiva, % É a versão para defesa ou a versão definitiva?
-  %quali, % É qualificação?
+  tcc,
   programa={Ciência da Computação},
 }
 
 \defesa{
   local={São Paulo},
-  data=2017-08-10, % YYYY-MM-DD
+  data=2026-11-30, % YYYY-MM-DD
 }
 
-% Se não houve bolsa, remova
-%
-% Norma sobre agradecimento por auxílios da FAPESP:
-% https://fapesp.br/11789/referencia-ao-apoio-da-fapesp-em-todas-as-formas-de-divulgacao
-%
-% Norma sobre agradecimento por auxílios da CAPES (Portaria 206,
-% de 4 de Setembro de 2018):
-% https://www.in.gov.br/materia/-/asset_publisher/Kujrw0TZC2Mb/content/id/39729251/do1-2018-09-05-portaria-n-206-de-4-de-setembro-de-2018-39729135
-%
-%\apoio{O presente trabalho foi realizado com apoio da Coordenação
-%      de Aperfeiçoamento\\ de Pessoal de Nível Superior -- Brasil
-%      (CAPES) -- Código de Financiamento 001} % o código é sempre 001
-%
-%\apoio{This study was financed in part by the Coordenação de
-%      Aperfeiçoamento\\ de Pessoal de Nível Superior -- Brasil
-%      (CAPES) -- Finance Code 001} % o código é sempre 001
-%
-%\apoio{Durante o desenvolvimento deste trabalho, o autor recebeu\\
-%      auxílio financeiro da FAPESP -- processo nº aaaa/nnnnn-d}
-%
-%\apoio{During the development if this work, the author received\\
-%      financial support from FAPESP -- grant \#aaaa/nnnnn-d}
-\apoio{Durante o desenvolvimento deste trabalho o autor
-       recebeu auxílio financeiro da XXXX}
-
-% A licença do seu trabalho. Use CC-BY, CC-BY-NC, CC-BY-ND, CC-BY-SA,
-% CC-BY-NC-SA ou CC-BY-NC-ND para escolher a licença Creative Commons
-% correspondente (o sistema insere automaticamente o texto da licença).
-% Se quiser estabelecer regras diferentes para o uso de seu trabalho,
-% converse com seu orientador e coloque o texto da licença aqui, mas
-% observe que apenas TCCs sob alguma licença Creative Commons serão
-% acrescentados ao BDTA. Se você tem alguma intenção de publicar o
-% trabalho comercialmente no futuro, sugerimos a licença CC-BY-NC-ND.
-%
-%\direitos{CC-BY-NC-ND}
-%
-%\direitos{Autorizo a reprodução e divulgação total ou parcial deste
-%          trabalho, por qualquer meio convencional ou eletrônico,
-%          para fins de estudo e pesquisa, desde que citada a fonte.}
-%
-%\direitos{I authorize the complete or partial reproduction and disclosure
-%          of this work by any conventional or electronic means for study
-%          and research purposes, provided that the source is acknowledged.}
-%
 \direitos{CC-BY}
-
-\fichacatalografica{
-
-\noindent Para gerar a ficha catalográfica, acesse \url{https://fc.ime.usp.br},
-          preencha o formulário e escolha a opção ``Gerar Código \LaTeX''.
-          Basta copiar e colar o resultado dentro do comando \Verb
-          |\fichacatalografica| (substituindo este texto explicativo).
-          \vspace{5\baselineskip}
-
-}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -215,11 +148,6 @@
 \maketitle % capa e folha de rosto
 
 %%%%%%%%%%%%%%%% DEDICATÓRIA, AGRADECIMENTOS, RESUMO/ABSTRACT %%%%%%%%%%%%%%%%%%
-
-\begin{dedicatoria}
-Esta seção é opcional e fica numa página separada; ela pode ser usada para
-uma dedicatória ou epígrafe.
-\end{dedicatoria}
 
 % Reinicia o contador de páginas (a próxima página recebe o número "i") para
 % que a página da dedicatória não seja contada.
