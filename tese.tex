@@ -207,7 +207,8 @@ texto texto texto texto. Texto opcional.
   ABNT & Associação Brasileira de Normas Técnicas\\
    URL & Localizador Uniforme de Recursos (\emph{Uniform Resource Locator})\\
    IME & Instituto de Matemática, Estatística e Ciência da Computação\\
-   USP & Universidade de São Paulo
+   USP & Universidade de São Paulo\\
+   SGBD & Sistema Gerenciador de Banco de Dados
 \end{tabular}
 
 %\chapter*{Lista de símbolos}
@@ -277,13 +278,12 @@ texto texto texto texto. Texto opcional.
 
 % A introdução não tem número de capítulo, então os cabeçalhos também não
 \pagestyle{unnumberedchapter}
-\input{conteudo/00-exemplo-introducao}
+\input{conteudo/introducao}
 \pagestyle{mainmatter}
-\input{conteudo/01-exemplo-normas-ime}
-\input{conteudo/02-exemplo-usando-o-modelo}
-\input{conteudo/03-exemplo-latex}
-\input{conteudo/04-exemplo-tutorial}
-\input{conteudo/05-exemplo-exemplos}
+\input{conteudo/fundamentacao}
+\input{conteudo/metodologia}
+\input{conteudo/resultados}
+\input{conteudo/conclusao}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% APÊNDICES E ANEXOS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -309,37 +309,29 @@ texto texto texto texto. Texto opcional.
 % a formatação dos cabeçalhos. Assim, vamos forçar uma nova página antes
 % de cada um deles.
 
-%%%% Apêndices %%%%
-
-\cleardoublepage
-
-\pagestyle{appendix}
-
-\appendix
-
-% \addappheadtotoc acrescenta a palavra "Apêndice" ao sumário; se
-% só há apêndices, sem anexos, provavelmente não é necessário.
-\addappheadtotoc
-
-\input{conteudo/apendice-exemplo-faq}
-\par
-
-%%%% Anexos %%%%
-
-\cleardoublepage
-
-\pagestyle{appendix} % repete o anterior, caso você não use apêndices
-
-\annex
-
-% \addappheadtotoc acrescenta a palavra "Anexo" ao sumário; se
-% só há anexos, sem apêndices, provavelmente não é necessário.
-\addappheadtotoc
-
-\input{conteudo/anexo-exemplo-imegoodies}
-\par
-\input{conteudo/anexo-exemplo-pseudocodigo}
-\par
+%%%% Apêndices e Anexos %%%%
+%
+% Os apêndices/anexos de EXEMPLO do modelo foram retirados do build: eles
+% dependem de macros definidos nos capítulos de exemplo (como \pkg) e, sem
+% esses capítulos, não compilam. Os arquivos continuam em conteudo/ para
+% consulta -- nada foi apagado. Quando houver apêndices reais (p.ex., guia de
+% reprodução do harness, esquema das CSVs da série S), descomente e adapte.
+%
+%\cleardoublepage
+%\pagestyle{appendix}
+%\appendix
+%\addappheadtotoc
+%\input{conteudo/apendice-exemplo-faq}
+%\par
+%
+%\cleardoublepage
+%\pagestyle{appendix}
+%\annex
+%\addappheadtotoc
+%\input{conteudo/anexo-exemplo-imegoodies}
+%\par
+%\input{conteudo/anexo-exemplo-pseudocodigo}
+%\par
 
 
 %%%%%%%%%%%%%%% SEÇÕES FINAIS (BIBLIOGRAFIA E ÍNDICE REMISSIVO) %%%%%%%%%%%%%%%%

@@ -1,0 +1,59 @@
+\chapter{Fundamentação Teórica}
+\label{cap:fundamentacao}
+
+O objetivo deste capítulo é abordar as bases conceituais e técnicas que precedem e apoiam este trabalho. Inicialmente, caracteriza-se o fenômeno da evolução semântica dos dados, comparando-o com a evolução de esquema. Em seguida, descreve-se o sistema que serve de base que este estudo busca estender, o MellowDB. Por fim, apresentam-se os fundamentos de bancos de dados distribuídos e suas definições, mostrando como o MongoDB lida com múltiplas máquinas.
+
+\section{Evolução de dados: esquema e semântica}
+\label{sec:evolucao}
+Coleções de dados que perduram por longos períodos podem não manter um mesmo significado, isto é, não há uma garantia de estabilidade. Um mesmo valor pode representar entidades distintas em épocas diferentes, ou uma mesma entidade pode ser representada de várias formas ao longo do tempo. Por exemplo, no caso do Brasil, o município de \textit{Moji Mirim} passou a ter a grafia de \textit{Mogi Mirim} em 2016, assim como o padrão de classificação de causas de óbito migrou da CID-9 para a CID-10 em 1996, alterando tanto os códigos quanto o agrupamento das doenças. Nesse cenário, uma consulta ingênua que filtre por um único nome ou código pode, por consequência, retornar apenas parte dos dados históricos. A Figura~\ref{fig:evolucao-semantica} ilustra esse tipo de mudança semântica.
+
+\begin{figure}[htb]
+  \centering
+  \begin{tikzpicture}[font=\small]
+    % entidade do mundo real (referente comum)
+    \node[draw, rounded corners=2pt, fill=black!5, align=center, minimum height=0.8cm]
+      (ent) at (0,2) {Mesmo município\\\footnotesize (entidade do mundo real)};
+    % rótulos antes e depois da evolução
+    \node[draw, rounded corners=2pt, align=center, minimum width=2.8cm, minimum height=0.95cm]
+      (old) at (-3,0.4) {\textbf{``Moji Mirim''}\\\footnotesize registros até 2015};
+    \node[draw, rounded corners=2pt, align=center, minimum width=2.8cm, minimum height=0.95cm]
+      (new) at (3,0.4) {\textbf{``Mogi Mirim''}\\\footnotesize registros de 2016 em diante};
+    % operação de evolução que marca a mudança de significado
+    \node[draw, rounded corners=2pt, fill=black!80, text=white, align=center]
+      (op) at (-0.3,0.4) {tradução\\\footnotesize (2016)};
+    % ambos os rótulos designam a mesma entidade
+    \draw[dashed,->] (ent) -- (old.north);
+    \draw[dashed,->] (ent) -- (new.north);
+    % o rótulo antigo é transformado no novo pela operação
+    \draw[->] (old) -- (op);
+    \draw[->] (op) -- (new);
+    % eixo do tempo
+    \draw[->] (-4.5,-1.5) -- (4.5,-1.5) node[right] {tempo};
+    \draw (0,-1.4) -- (0,-1.6) node[below] {\footnotesize 2016};
+    % uma consulta histórica abrange as duas semânticas
+    \draw[<->] (-3,-0.7) -- (3,-0.7);
+    \node at (0,-1.0) {\footnotesize consulta histórica: abrange as duas semânticas};
+  \end{tikzpicture}
+  \caption[Evolução semântica: a tradução ``Moji Mirim'' para ``Mogi Mirim''.]{%
+    Evolução semântica ilustrada pela tradução ``Moji Mirim'' $\rightarrow$
+    ``Mogi Mirim'' (2016).}
+  \label{fig:evolucao-semantica}
+\end{figure}
+
+
+Sob o termo de \textit{evolução de domínio}, \citet{ventrone1991} apresenta esse fenômeno onde o signicado dos correspondentes, externos ao sistema, dos valores de um domínio mudam ao longo do tempo, fazendo o domínio se tornar um agregado de subdomínios semanticamente incompatíveis, dos quais um simples mapeamento entre valores ``antigos'' e ``novos'' pode não ser suficiente. Dentre as diferentes formas de evolução que ele expõe, há a distinção entre a \textit{heterogeneidade semântica}, onde a semântica dos dados está implícita no código das aplicações, e a heterogeneidade sintática, pois ele argumenta que tornar a informação explícita nos próprios dados faz do problema não mais semântico, mas sim sintático e de fácil solução. Nesse contexto, observa-se que cada mudança de significado produz uma versão distinta dos dados, isto é, um sistema pode adotar o uso de versionamento sobre o domínio, ideia que é trabalhada no sistema base deste trabalho.
+
+Por outro lado, vale destacar a outra parte do desenvolvimento contínuo de um banco de dados, a \textit{evolução de esquema}, na qual a estrutura muda com a adição ou a remoção de atributos e relações. Esse é um campo maduro na literatura e com diversas soluções e maneiras de lidar com o problema em sistemas comerciais. A revisão de \citet{brahmia2024} a definem como a modalidade que adapta os dados existentes a um novo esquema, poupando administradores e programadores desse compromisso, e registra que os SGBDs oferecem suporte apenas limitado e pontual a ela. Embora não faça parte do escopo desta pesquisa, a evolução de esquema é um problema relacionado, cujo campo apresenta fundamentos e soluções incorporados no sistema base do trabalho. 
+
+Há duas estratégias gerais para lidar com dados sob evolução que aparecem recorrentemente na literatura. A primeira, \textbf{ansiosa} (\textit{eager}), converte ou migra os dados no momento em que a mudança ocorre, enquanto a segunda, \textbf{preguiçosa} (\textit{lazy}), mantém os dados em suas versões originais e adia o tratamento para o momento da consulta. \citet{devries2004} enquadram essa escolha como conversão \textit{strict} (ansiosa), \textit{lazy} ou inexistente, quando nenhum alteração é feita. \citet{moon2008}, por exemplo, usa da abordagem preguiçosa para bancos de dados de tempo de transação sob evolução de esquema, criando uma camada que lê a consulta do usuário e a reescreve para comtemplar as equivalências de diferentes versões dos dados. Para representar as mudanças, os autores introduziram operadores de modificação de esquema (\textit{Schema Modification Operators}) que mapeiam versões sucessivas, incluindo a fusão e a divisão de tabelas. Essas são soluções consolidadas no contexto de esquema que serão retomados nessa pesquisa de semântica.
+
+O MellowDB \citep{nepomuceno2026}, sistema base que esta monografia estende, aparece nesse contexto, porém dedicado especificamente à evolução semântica. Ele registra as operações de evolução (tradução, fusão e divisão) na forma de metadados, e oferece as mesmas duas estratégias: a reescrita de consultas (\textit{rewrite}), preguiçosa, e o pré-processamento com versionamento na inserção (\textit{preprocess}), ansioso. Esse sistema será mais detalhado na seção seguinte. 
+
+% \section{O sistema-base: MellowDB}
+% \label{sec:mellowdb}
+%
+% \section{Bancos de dados distribuídos}
+% \label{sec:distribuidos}
+%
+% \section{MongoDB distribuído}
+% \label{sec:mongodb}
