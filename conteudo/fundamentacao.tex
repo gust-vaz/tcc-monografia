@@ -207,8 +207,78 @@ Na implementação, o MellowDB é escrito em Python com uma interface que espelh
 
 A avaliação do sistema, conduzida sobre dados reais de mortalidade do DATASUS (a transição da CID-9 para a CID-10)\footnote{O conjunto de dados, configurado para essa análise do MellowDB, está disponível em: NEPOMUCENO, P. I. S.; BRAGHETTO, K. \textit{Dataset for Evaluating Semantic Evolution Handling in MellowDB: Query Rewriting vs. Data Preprocessing}. Mendeley Data, V1, 2025. DOI: \url{10.17632/ytfdw568kk.1}.}, mostra que as duas estratégias são viáveis em produção, onde cada uma superior em casos diferentes. A reescrita vence em cargas dominadas por escrita, enquanto o pré-processamento vence nos demais cenários, com a indexação estreitando a diferença entre elas \citep{nepomuceno2026}. Entretanto, esse projeto e análise foram feitos em um único nó, algo que os autores apontaram como trabalho futuro em direcionar ao ambiente distribuído com coleções eventualmente replicadas e particionadas.
 
-% \section{Bancos de dados distribuídos}
-% \label{sec:distribuidos}
-%
+\section{Bancos de dados distribuídos}
+\label{sec:distribuidos}
+
+Distribuir um banco de dados significa espalhar os dados por várias máquinas, por dois motivos complementares: manter cópias dos dados em mais de um nó (\textbf{replicação}) e dividir os dados entre os nós, cada um guardando uma parte (\textbf{particionamento}). As duas técnicas aumentam a disponibilidade e a capacidade do sistema, mas introduzem um problema fundamental em manter dados distribuídos consistentes e havendo um custo \citep{elmasri2017, ozsu2020}. Esta seção apresenta esses conceitos, e a seção seguinte mostra como o MongoDB os concretiza.
+
+Aprofundando a definição, um banco distribuído é um conjunto de nós interconectados por uma rede, cujos dados são logicamente relacionados, ainda que os nós não sejam necessariamente idênticos em \textit{hardware} ou \textit{software}, isto é, sejam heterogêneos \citep{elmasri2017}. Dado esse cenário, vale citar alguns conceitos:
+
+\begin{itemize}
+  \item A \textbf{confiabilidade} é a probabilidade de o sistema estar no ar em um dado instante;
+  \item A \textbf{disponibilidade} é a probabilidade do sistema permanecer no ar ao longo de um intervalo;
+  \item A \textbf{escalabilidade} mede o quanto o sistema cresce sem interromper o serviço, seja na \textit{horizontal}, acrescentando nós, seja na \textit{vertical}, ampliando a capacidade de cada um;
+  \item A \textbf{tolerância a partições} é a capacidade de continuar operando mesmo quando a rede se divide e grupos de nós deixam de se comunicar.
+\end{itemize}
+
+São essas propriedades que a replicação e o particionamento buscam e que, como mostra a Seção~\ref{sub:cap-pacelc}, não podem ser todas maximizadas ao mesmo tempo.
+
+\subsection{Replicação}
+\label{sub:replicacao}
+
+Na replicação, cada dado é mantido em cópias idênticas, em nós diferentes, utilizado para dois propósitos. O primeiro é a \textbf{disponibilidade}, que aqui, se um nó falha, outro com a mesma cópia assume e o sistema continua respondendo. O segundo é o \textbf{balanceamento de leitura} (\textit{read offloading}) em que as consultas de leitura podem ser atendidas por qualquer uma das cópias, distribuindo a carga por mais máquinas \citep{cattell2011}.
+
+A configuração mais comum usa um nó \textit{primário} e um ou mais \textit{secundários}, no qual as escritas vão para o primário, que as propaga aos secundários. Por um lado, essa propagação pode ser definida por um compromisso \textit{síncrono}, onde o primário espera as cópias confirmarem a escrita antes de concluí-la, garantindo que todas estejam atualizadas, mas aumentando a latência devido a cópia mais lenta. Por outro lado, \textit{assíncrona}, em que o primário conclui a escrita sem esperar, reduzindo a latência, mas abrindo uma janela em que os secundários ficam desatualizados e uma leitura sobre eles pode retornar um dado antigo \citep{abadi2012}.
+
+% fig2
+
+A extensão da replicação também é uma decisão de projeto. No extremo da replicação total, cada nó guarda uma cópia do banco inteiro, maximando a disponibilidade, porém exigindo tempo de atualização sobre a escrita para manter essa consistência. Em um meio termo, isto é, replicação parcial, decidir o que replicar e onde alocar os dados é um problema de otimização que permeia os objetivos de desempenho, disponibilidade e o padrão de acesso das transações.
+
+A composição com um nó privilegiado também determina o comportamento sob falha. O primário funciona como coordenador, e, quando ele cai, os nós restantes precisam escolher um substituto por meio de uma \textbf{eleição}, na qual um candidato só assume ao obter o voto da maioria dos nós, uma regra que impede dois coordenadores simultâneos e exige que mais da metade do conjunto esteja no ar \citep{elmasri2017}. Essa mesma lógica de maioria reaparece em como um sistema distribuído decide quando uma escrita pode ser considerada efetivada.
+
+\subsection{Particionamento}
+\label{sub:particionamento}
+
+Enquanto a replicação multiplica cópias, o particionamento (\textit{sharding}) divide os dados, de modo que cada nó, ou \textit{shard}, guarda apenas parte da coleção. É a estratégia que foca na escalabilidade horizontal, acrescentando-se mais servidores, sem compartilhamento de memória ou disco entre eles (\textit{shared-nothing}), ao invés de um servidor maior, pois o volume de dados ou a vazão de escrita ultrapassam o que uma única máquina comporta \citep{cattell2011}.
+
+Em geral, o \textit{sharding} é uma \textbf{fragmentação horizontal} que pega um subconjunto das linhas, ou documentos, da coleção, definido por uma condição sobre o valor de um ou mais atributos, e cada fragmento é alocado a um nó. Ele difere da \textbf{fragmentação vertical}, que reparte a coleção por colunas, guardando em cada nó apenas alguns atributos de cada registro.
+
+A divisão é definida por uma \textbf{chave de \textit{shard}}, isto é, um ou mais campos cujo valor determina em que shard cada registro deve residir. Os dados são organizados em blocos (\textit{chunks}) distribuídos entre os shards, e um processo de balanceamento os redistribui quando a ocupação fica desigual. Um roteador recebe cada consulta e decide a quais shards encaminhá-la, pareando consultas que mencionam a chave com os shards correspondentes, porém precisando enviar a todos os shards via \textit{broadcast} quando ela não é parâmetro da consulta. Por isso, a escolha da chave molda diretamente o desempenho das consultas \citep{ozsu2020}.
+
+\subsection{O custo da consistência: CAP e PACELC}
+\label{sub:cap-pacelc}
+
+Distribuir dados impõe limites teóricos estudados há décadas, e o mais conhecido é o teorema CAP. Ele considera três propriedades desejáveis de um sistema distribuído, a \textbf{consistência} (\textit{Consistency}) dos dados, em que toda leitura enxerga a escrita mais recente, a \textbf{disponibilidade} (\textit{Availability}) do sistema, e a \textbf{tolerância a partições} (\textit{Partition tolerance}), em que o sistema continua operando mesmo quando a rede se divide e mensagens entre nós se perdem. O teorema, provado formalmente por \citet{gilbert2002}, afirma que nenhum sistema distribuído consegue garantir as três ao mesmo tempo.
+
+A Figura~\ref{fig:cap} exemplifica o problema com a partição imposta pela rede (P). Suponha duas cópias de um dado $x$, uma no nó A e outra no nó B, e que a rede entre eles se desconecte. Um cliente escreve $x = 2$ em A; logo depois, outro cliente lê $x$ em B, que ainda guarda $x = 1$ e, por causa da partição, não soube da atualização. O nó B se vê diante de um dilema, ou ele responde de imediato com $x = 1$, permanecendo disponível (A), mas violando a consistência, ou ele se recusa a responder até a rede seja estabilizada, preservando a consistência (C), mas abrindo mão da disponibilidade.
+
+\begin{figure}[htb]
+  \centering
+  \begin{tikzpicture}[font=\small]
+    \node[draw, rounded corners=2pt, minimum width=2.4cm, minimum height=1cm, align=center] (A) at (0,0) {\textbf{Nó A}\\\texttt{x = 2}};
+    \node[draw, rounded corners=2pt, minimum width=2.4cm, minimum height=1cm, align=center] (B) at (6,0) {\textbf{Nó B}\\\texttt{x = 1}};
+    % partição (enlace rompido)
+    \draw[dashed] (A.east) -- (2.6,0);
+    \draw[dashed] (3.4,0) -- (B.west);
+    \draw[thick] (2.82,0.28) -- (3.18,-0.28);
+    \draw[thick] (3.18,0.28) -- (2.82,-0.28);
+    \node[below] at (3,-0.34) {\footnotesize partição};
+    % escrita em A
+    \node[align=center] (w) at (-1.9,1.7) {\footnotesize cliente escreve\\\texttt{x = 2}};
+    \draw[->] (w) -- (A.north);
+    % leitura em B
+    \node[align=center] (r) at (7.9,1.7) {\footnotesize cliente lê\\\texttt{x}};
+    \draw[->] (r) -- (B.north);
+    % dilema
+  \end{tikzpicture}
+  \caption[O dilema do teorema CAP sob uma partição de rede.]{%
+    O dilema do teorema CAP sob uma partição de rede. Há uma decisão por parte do sistema em garantir disponibilidade (AP) ou consistência (CP) ao ler do nó desatualizado B.}
+  \label{fig:cap}
+\end{figure}
+
+\citet{brewer2012}, doze anos depois de enunciar o teorema, problematiza a leitura de ``dois entre três''. Partições de rede são raras e passageiras, onde, na maior parte do tempo, o sistema pode oferecer consistência e disponibilidade ao mesmo tempo. Além disso, a escolha entre uma e outra não precisa ser global nem definitiva, decidindo uma resposta por operação e em graus intermediários. Assim, o problema de projeto se foca em decidir o que fazer durante uma partição e como se recuperar quando ela termina.
+
+O CAP, porém, só descreve o comportamento sob falha. \citet{abadi2012} observa que, mesmo em operação normal (\textit{Else}), há mais um compromisso, entre consistência e \textbf{latência} (\textit{Latency}), que vem diretamente da replicação. Havendo várias cópias dos dados, confirmá-las antes de responder custa tempo, e dispensar essa confirmação devolve velocidade ao preço de eventualmente ler um dado defasado (Seção~\ref{sub:replicacao}). Na formulação PACELC apresentada por Abadi, se há Partição (P), troca-se disponibilidade por consistência (A/C), senão (E), troca-se latência por consistência (L/C). A distinção importa para este trabalho porque o custo da consistência está presente o tempo todo, não apenas na falha rara. O MongoDB, por exemplo, classifica-se como \textbf{PA/EC}, pois em operação normal mantém-se consistente (EC) e, sob uma partição que isole o primário, prioriza a disponibilidade (PA).
+
 % \section{MongoDB distribuído}
 % \label{sec:mongodb}
