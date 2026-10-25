@@ -280,5 +280,27 @@ A Figura~\ref{fig:cap} exemplifica o problema com a partição imposta pela rede
 
 O CAP, porém, só descreve o comportamento sob falha. \citet{abadi2012} observa que, mesmo em operação normal (\textit{Else}), há mais um compromisso, entre consistência e \textbf{latência} (\textit{Latency}), que vem diretamente da replicação. Havendo várias cópias dos dados, confirmá-las antes de responder custa tempo, e dispensar essa confirmação devolve velocidade ao preço de eventualmente ler um dado defasado (Seção~\ref{sub:replicacao}). Na formulação PACELC apresentada por Abadi, se há Partição (P), troca-se disponibilidade por consistência (A/C), senão (E), troca-se latência por consistência (L/C). A distinção importa para este trabalho porque o custo da consistência está presente o tempo todo, não apenas na falha rara. O MongoDB, por exemplo, classifica-se como \textbf{PA/EC}, pois em operação normal mantém-se consistente (EC) e, sob uma partição que isole o primário, prioriza a disponibilidade (PA).
 
-% \section{MongoDB distribuído}
-% \label{sec:mongodb}
+\section{MongoDB distribuído}
+\label{sec:mongodb}
+
+Os conceitos da seção anterior ganham forma concreta no MongoDB, o SGBD sobre o qual o MellowDB roda. Ele oferece as duas dimensões da distribuição como recursos distintos, dos quais serão explorados adiante, os \textit{replica sets}, para a replicação, e os \textit{sharded clusters}, para o particionamento.
+
+\subsection{Replica sets}
+\label{sub:replica-sets}
+
+Um \textit{replica set} é a realização, no MongoDB, de um nó \textit{primário} e vários \textit{secundários} que mantêm cópias idênticas dos dados. As escritas vão para o primário, que as registra em um log de operações, o \textit{oplog}, a partir do qual os secundários as reproduzem. Se o primário cair, os secundários elegem um substituto pela regra de maioria já mencionada.
+
+Esse sistema possui uma capacidade de configuração de destaque para o projeto, pois a consitência e a durabilidade não são fixas, mas ajustáveis por operação \citep{schultz2019}. Cada escrita carrega um \textit{writeConcern} com opções \texttt{w:1}, onde o primário a confirma assim que a aplica localmente; \texttt{w:N}, no qual é confirmado quando $N$ nós de replica a confirmam; e \texttt{w:majority}, que só a confirma depois que a maioria dos nós a replicou, sendo mais lento, porém à prova da queda do primário. Cada leitura, por sua vez, carrega um \textit{readConcern}, que fixa o quanto do dado precisa estar confirmado, tal qual descrito para a escrita, e uma \textit{read preference}, que a direciona ao primário atual ou a um secundário. São essas opções que garantem, no MongoDB, o compromisso latência e consistência do PACELC.
+
+\subsection{Sharded clusters}
+\label{sub:sharded-clusters}
+
+O MongoDB oferece também a repartição dos dados em \textit{sharded cluster}, uma coleção fragmentada horizontalmente por uma \textbf{chave de \textit{shard}}. Três papéis compõem o \textit{cluster}:
+
+\begin{itemize}
+  \item \textbf{shards} que guardam os dados e são um \textit{replica set} propriamente, apesar de possuir apenas parte da coleção. Eles podem conter um ou mais nós iguais;
+  \item \textbf{config servers} que guardam os metadados que dizem qual faixa de valores da chave vive em qual \textit{shard};
+  \item um ou mais roteadores \textbf{mongos} que recebem as consultas e, consultando os metadados, as encaminham.
+\end{itemize}
+
+É nesse encaminhamento que a escolha da chave é essencial, pois uma consulta que fixa a chave de \textit{shard} é dirigida apenas ao shard que a contém, enquanto uma que não a fixa é difundida a todos. E, como cada shard é um \textit{replica set}, as duas dimensões se combinam, isto é, um \textit{cluster} particionado é também replicado, e tudo o que vale para os \textit{replica sets} continua valendo dentro de cada shard.
