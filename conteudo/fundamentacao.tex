@@ -292,6 +292,8 @@ Um \textit{replica set} é a realização, no MongoDB, de um nó \textit{primár
 
 Esse sistema possui uma capacidade de configuração de destaque para o projeto, pois a consitência e a durabilidade não são fixas, mas ajustáveis por operação \citep{schultz2019}. Cada escrita carrega um \textit{writeConcern} com opções \texttt{w:1}, onde o primário a confirma assim que a aplica localmente; \texttt{w:N}, no qual é confirmado quando $N$ nós de replica a confirmam; e \texttt{w:majority}, que só a confirma depois que a maioria dos nós a replicou, sendo mais lento, porém à prova da queda do primário. Cada leitura, por sua vez, carrega um \textit{readConcern}, que fixa o quanto do dado precisa estar confirmado, tal qual descrito para a escrita, e uma \textit{read preference}, que a direciona ao primário atual ou a um secundário. São essas opções que garantem, no MongoDB, o compromisso latência e consistência do PACELC.
 
+Além do ajuste por operação, o MongoDB oferece \textbf{transações multidocumento} sobre \textit{replica sets}, as quais permitem várias escritas em uma única unidade atômica, de modo que ou todas são confirmadas, ou nenhuma é \citep{schultz2025}. Na transação, as leituras usam o \textit{readConcern} \texttt{snapshot}, que expõe um retrato único e consistente dos dados, tomado no início da transação e isolado das escritas concorrentes.
+
 \subsection{Sharded clusters}
 \label{sub:sharded-clusters}
 

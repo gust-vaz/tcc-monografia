@@ -21,8 +21,24 @@ A outra decisão foi sobre como expor a extensão a quem a usa. Buscou-se preser
 
 Essas duas decisões precedem o que as próximas seções detalham, sempre dentro das restrições herdadas do MongoDB. Preservando os mecanismos descritos na Seção~\ref{sec:mongodb}, privilegia-se as implicações das escolhas de implementação desse projeto de extensão.
 
-%\section{Extensão para \textit{replica sets}}
-%\label{sec:ext-replicaset}
+\section{Extensão para \textit{replica sets}}
+\label{sec:ext-replicaset}
+
+Levar o MellowDB à forma mais simples de distribuição, a replicação, se encontra com a cadeia de versões, um ponto sensível do funcionamento do sistema. Ela é a fonte de verdade que traduz cada consulta entre termos de épocas diferentes, de modo que, se for escrita pela metade ou lida de uma cópia desatualizada, a tradução passa a devolver resultados errados. Por isso foi importante considerar como armazená-la com segurança e de onde lê-la.
+
+Aplicar uma operação semântica compreende alguns passos, pois atualiza-se o nó terminal da cadeia, com os ponteiros \texttt{next\_operation} e \texttt{next\_version}, e insere-se o novo nó que passa a descrever a versão atual. Em um único servidor, essa sequência ou falhava por inteiro ou era refeita, porém, em um \textit{replica set}, uma eleição ou a queda do primário no meio dela poderia deixar a cadeia em um estado intermediário, com um ponteiro já gravado e o nó correspondente ausente. Assim, quando a coleção detecta que opera sobre um \textit{replica set}, a escrita da cadeia é envolvida em uma transação multidocumento, confirmada com \textit{write concern} \texttt{majority} e lida sob \textit{read concern} \texttt{snapshot}, uma forma de indicar que ou, a operação inteira é aceita por uma maioria dos nós, e sobrevive a qualquer eleição posterior, ou nenhuma parte dela é aplicada. No caso de operações semânticas simultâneas, aplica-se um controle de concorrência otimista, onde, ao invés de bloquear a cadeia previamente, detecta-se e rejeita-se a escrita que chegou por último, lançando uma exceção de conflito (\texttt{VersionChainConflict}).
+
+A durabilidade das demais escritas, como os registros brutos e os processados, é exposta como o parâmetro \texttt{write\_concern}, que o usuário ajusta conforme o compromisso desejado entre segurança e latência, de \texttt{w:1}, que confirma assim que o primário grava, a \texttt{w:majority}, que aguarda a maioria dos nós. O custo dessa garantia, à medida que o conjunto de nós cresce, é um dos pontos que os testes mais adiante procuram caracterizar.
+
+Do lado da leitura, o retorno da replicação é poder consultar a partir de qualquer réplica em vez de apenas no primário. A extensão aproveita isso preservando a distinção entre os dois tipos de leitura que realiza, a da cadeia de versões, que idealmente precisa estar sempre atualizada, e a dos registros, que pode tolerar algum grau de defasagem. Esse comportamento é controlado por \texttt{read\_uri}, que indica o nó de onde os registros são lidos, e por \texttt{read\_mode}, com dois modos:
+\begin{itemize}
+    \item \texttt{split} (padrão): a cadeia de versões é sempre lida do primário, sob \textit{read concern} \texttt{majority}, enquanto apenas os registros, a maior carga de dados, são recuperados pelo nó indicado em \texttt{read\_uri}. O volume é distribuido sem arriscar a correção da tradução;
+    \item \texttt{single\_source}: tudo, cadeia e registros, é lido de um mesmo nó, assumindo de propósito a defasagem. Assim, servindo para ler de forma consistente de um nó específico ou para medir o efeito dessa defasagem.
+\end{itemize}
+
+O nó e o modo de leitura podem ser trocados em tempo de execução, sem reconstruir a coleção, o que permite redirecionar as consultas para outro secundário no meio de um experimento.
+
+Em suma, a extensão para \textit{replica sets} mantém a cadeia de versões autoritativa no primário e oferece a replicação como ganho de durabilidade e de vazão de leitura, sem comprometer a correção da tradução semântica.
 
 %\section{Extensão para \textit{sharding}}
 %\label{sec:ext-sharding}
