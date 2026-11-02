@@ -1,4 +1,34 @@
 \chapter{Metodologia}
 \label{cap:metodologia}
 
-bla bla
+Este capítulo descreve a contribuição do trabalho quanto à extensão do MellowDB para ambientes distribuídos e o método experimental usado para caracterizá-la. As seções a seguir tratam da engenharia em volta da visão geral da extensão, a adaptação a \textit{replica sets} e \textit{clusters} particionados e o arcabouço que torna os experimentos reprodutíveis. A última seção define o método experimental dos conjuntos de dados, design das séries de \textit{benchmark} e métricas. Os resultados numéricos ficam reservados para o Capítulo~\ref{cap:resultados}.
+
+\section{Visão geral da extensão}
+\label{sec:visao-geral}
+
+O capítulo anterior mostrou que a evolução semântica dos dados é um problema de significado, e não de esquema, e que o MellowDB (Seção~\ref{sec:mellowdb}) o resolve por meio de uma arquitetura de nó único de MongoDB, através das estratégias \textit{rewrite} e \textit{preprocess}. Entretanto, isso carrega uma limitação evidente ao analisar bancos que perduram por longos períodos, como o já mencionado DATASUS, que para a pesquisa de Nepomuceno contava com cerca de 6,1 milhões de registros e 220 operações de evolução. Um volume de dados muito alto pode prejudicar a performance de consultas quando restrito a um só servidor.
+
+A solução é aplicar a distribuição dos dados focando nos pontos levantados na Seção~\ref{sec:distribuidos}. De um lado, replicar os dados para garantir a tolerância a falhas e distribuir a carga de leitura e por outro, repartir a coleção para evitar que um servidor seja sobrecarregado de informação. Este é um campo não muito explorado para a evolução semântica e que é sugerido como trabalho futuro na tese de Nepomuceno, tornando-se o objetivo central desta contribuição e das decisões que se seguem.
+
+O MellowDB foi desenvolvido sobre o MongoDB e, além das conveniências de um banco de documentos \textit{schemaless} \citep{cattell2011} para as operações de evolução, pode-se contar com os mecanismos já existentes de distribuição para Python, linguagem de programação em que o sistema original\footnote{Repositório da implementação de Nepomuceno: \url{https://github.com/pisn/semantic_heterogeneous_database}} e esta extensão\footnote{Repositório da contribuição deste trabalho: \url{https://github.com/gust-vaz/semantic_heterogeneous_extended}} foram contruídos. A decisão de manter o mesmo SGBD advém dessa herança e praticidade, mas também implica em limitações das primitivas que o próprio MongoDB disponibiliza.
+
+A outra decisão foi sobre como expor a extensão a quem a usa. Buscou-se preservar o modelo de programação original em que a mesma classe \texttt{BasicCollection} que servia um nó isolado deveria servir, sem reescrita de código, as abordagens distribuídas. O que varia de uma implementação para outra reduz-se à \textit{connection string} e aos três parâmetros \texttt{write\_concern}, o par \texttt{read\_uri}/\texttt{read\_mode} e \texttt{shard\_key}. Para que isso funcionasse sem configuração manual, a coleção passou a detectar a topologia em tempo de execução, ou seja, ao ser inicializada, checa o sistema, já operando, com o comando \texttt{hello} e decide como agir:
+\begin{itemize}
+    \item Um nome de conjunto (\texttt{setName}) revela um \textit{replica set} e ativa as transações da cadeia de versões;
+    \item A resposta \texttt{msg} igual a \texttt{isdbgrid} revela um roteador \texttt{mongos} e ativa o particionamento;
+    \item Um \textit{mongod} isolado não dispara nenhum dos dois e preserva o comportamento herdado.
+\end{itemize}
+
+Essas duas decisões precedem o que as próximas seções detalham, sempre dentro das restrições herdadas do MongoDB. Preservando os mecanismos descritos na Seção~\ref{sec:mongodb}, privilegia-se as implicações das escolhas de implementação desse projeto de extensão.
+
+%\section{Extensão para \textit{replica sets}}
+%\label{sec:ext-replicaset}
+
+%\section{Extensão para \textit{sharding}}
+%\label{sec:ext-sharding}
+
+%\section{Ferramental, infraestrutura e reprodutibilidade}
+%\label{sec:ferramental}
+
+%\section{Método experimental}
+%\label{sec:metodo}
