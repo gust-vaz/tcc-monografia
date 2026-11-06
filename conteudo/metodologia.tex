@@ -24,7 +24,7 @@ Essas duas decisões precedem o que as próximas seções detalham, sempre dentr
 \section{Extensão para \textit{replica sets}}
 \label{sec:ext-replicaset}
 
-Levar o MellowDB à forma mais simples de distribuição, a replicação, se encontra com a cadeia de versões, um ponto sensível do funcionamento do sistema. Ela é a fonte de verdade que traduz cada consulta entre termos de épocas diferentes, de modo que, se for escrita pela metade ou lida de uma cópia desatualizada, a tradução passa a devolver resultados errados. Por isso foi importante considerar como armazená-la com segurança e de onde lê-la.
+Levar o MellowDB à forma mais simples de distribuição, a replicação, significa lidar com a cadeia de versões, um ponto sensível do funcionamento do sistema. Ela é a fonte de verdade que traduz cada consulta entre termos de épocas diferentes, de modo que, se for escrita pela metade ou lida de uma cópia desatualizada, a tradução passa a devolver resultados errados. Por isso foi importante considerar como armazená-la com segurança e de onde lê-la.
 
 Aplicar uma operação semântica compreende alguns passos, pois atualiza-se o nó terminal da cadeia, com os ponteiros \texttt{next\_operation} e \texttt{next\_version}, e insere-se o novo nó que passa a descrever a versão atual. Em um único servidor, essa sequência ou falhava por inteiro ou era refeita, porém, em um \textit{replica set}, uma eleição ou a queda do primário no meio dela poderia deixar a cadeia em um estado intermediário, com um ponteiro já gravado e o nó correspondente ausente. Assim, quando a coleção detecta que opera sobre um \textit{replica set}, a escrita da cadeia é envolvida em uma transação multidocumento, confirmada com \textit{write concern} \texttt{majority} e lida sob \textit{read concern} \texttt{snapshot}, uma forma de indicar que ou, a operação inteira é aceita por uma maioria dos nós, e sobrevive a qualquer eleição posterior, ou nenhuma parte dela é aplicada. No caso de operações semânticas simultâneas, aplica-se um controle de concorrência otimista, onde, ao invés de bloquear a cadeia previamente, detecta-se e rejeita-se a escrita que chegou por último, lançando uma exceção de conflito (\texttt{VersionChainConflict}).
 
@@ -40,8 +40,55 @@ O nó e o modo de leitura podem ser trocados em tempo de execução, sem reconst
 
 Em suma, a extensão para \textit{replica sets} mantém a cadeia de versões autoritativa no primário e oferece a replicação como ganho de durabilidade e de vazão de leitura, sem comprometer a correção da tradução semântica.
 
-%\section{Extensão para \textit{sharding}}
-%\label{sec:ext-sharding}
+\section{Extensão para \textit{sharding}}
+\label{sec:ext-sharding}
+
+A segunda forma de distribuição é o particionamento, o qual envolve a configuração de uma \textbf{chave de \textit{shard}}. No geral, levar o MellowDB a esse ambiente implica em declarar essa chave, decidir o que repartir e o que manter inteiro e, no ponto mais sensível, fazer a recuperação dos registros processados continuar funcionando quando a coleção está espalhada.
+
+A chave é exposta como o parâmetro \texttt{shard\_key}, restrito a um único campo, \textit{ranged} ou \textit{hashed}, de modo que chaves compostas ficaram fora do escopo. Quando a coleção detecta que há um roteador \texttt{mongos}, ela lida com a chave de forma idempotente, isto é, o estado atual é lido do catálogo de \textit{sharding}, evitando o error de reparticionar sobre outra chave. O particionamento em si é efetivado pelo comando \texttt{shardCollection} do MongoDB, que marca a coleção como distribuída sobre a chave. Como ele exige que o índice da chave já exista, em uma coleção vazia o próprio MongoDB o cria, enquanto em uma já populada o índice é construído antes.
+
+Entretanto, embora as coleções de dados, bruta e processada, sejam dividas pela chave, os metadados que envolvem os campos da coleção e a cadeia de versões são mantidas inteiras no \textit{shard} primário do banco. Essa decisão ocorre pois, além de pequenas em volume de informação, são armazenados dois padrões de acesso concorrentes, para a frente (por \texttt{next\_operation}) e para trás (por \texttt{previous\_operation}), que nenhuma chave única atenderia bem. Isso evita a necessidade de uma eventual reconstrução da cadeia, caso espalhada, e também segue do caminho tomado na seção anterior, de preservá-la autoritativa no núcleo primário.
+
+A recuperação, ou materialização, passa por um problema inerente da implementação original quanto à fase de agregação. No sistema base, a aplicação de uma operação semântica reescrevia os registros processados para evoluir os afetados, escrevendo o resultado em uma coleção termporária e substituindo a original. Esse processo, em nó único, era feito pela etapa de agregação, \texttt{\$out} na linguagem própria do MongoDB. Porém, essa abordagem não funciona muito bem em uma coleção particionada, porque \texttt{\$out} não a aceita como destino e, ainda, faria todos os registros afetados convergirem para o \textit{shard} primário. Portanto, a materialização foi reescrita com \texttt{\$merge}, que copia e evolui em uma única passagem no servidor, gravando de volta na própria coleção processada mesmo enquanto a lê. Cada cópia tem o \texttt{\_id} removido, o que a torna uma inserção nova que recebe o campo já evoluído. Isso garante que \textit{shard} faz a sua parte localmente, sem que nada passe por um nó único.
+
+O ponto mais sensível é a recuperação dos registros processados, a \textbf{materialização}. Aplicar uma operação semântica significa reescrever os registros processados afetados, onde cada um é copiado e evoluído para a sua nova faixa de versões, como descrito na Seção~\ref{sec:mellowdb}. No sistema base, isso era feito escrevendo o resultado em uma coleção temporária que então substituía a original, por meio da etapa de agregação \texttt{\$out} do MongoDB. Essa estratégia, porém, não sobrevive ao particionamento, porque \texttt{\$out} não aceita uma coleção particionada como destino e ainda obrigaria todos os registros afetados, espalhados pelos \textit{shards}, a convergirem unicamente para o \textit{shard} primário. A materialização foi então reescrita com \texttt{\$merge}, que copia e evolui os registros em uma única passagem no servidor, gravando o resultado de volta na própria coleção processada enquanto a lê. Cada cópia tem o campo \texttt{\_id} removido, o que a torna uma inserção nova já com o valor evoluído, não meramente uma atualização. Assim, cada \textit{shard} processa apenas os seus próprios registros, no lugar, sem que nada atravesse a rede para um único nó. A Figura~\ref{fig:materializacao} diferencia as duas abordagens.
+
+\begin{figure}[htb]
+  \centering
+  \begin{tikzpicture}[font=\footnotesize,
+      shard/.style={draw, rounded corners=2pt, fill=black!4, minimum width=1.4cm, minimum height=0.8cm, align=center},
+      dest/.style={draw, dashed, rounded corners=2pt, minimum width=1.4cm, minimum height=0.8cm, align=center}]
+    % (a) $out: funil para o shard primário
+    \node[anchor=west] at (-6.0,2.2) {(a) \texttt{\$out} (original)};
+    \node[shard] (a1) at (-5.2,1.1) {shard 1};
+    \node[shard] (a2) at (-3.8,1.1) {shard 2};
+    \node[shard] (a3) at (-2.4,1.1) {shard 3};
+    \node[dest, minimum width=2.8cm] (at) at (-3.8,-0.9) {coleção temporária\\(no \textit{shard} primário)};
+    \draw[->] (a1) -- (at);
+    \draw[->] (a2) -- (at);
+    \draw[->] (a3) -- (at);
+    % divisória
+    \draw[gray!45] (-1.0,2.5) -- (-1.0,-1.6);
+    % (b) $merge: cada shard no lugar
+    \node[anchor=west] at (0.2,2.2) {(b) \texttt{\$merge} (extensão)};
+    \node[shard] (b1) at (0.9,1.1) {shard 1};
+    \node[shard] (b2) at (2.5,1.1) {shard 2};
+    \node[shard] (b3) at (4.1,1.1) {shard 3};
+    \node[dest] (c1) at (0.9,-0.9) {shard 1};
+    \node[dest] (c2) at (2.5,-0.9) {shard 2};
+    \node[dest] (c3) at (4.1,-0.9) {shard 3};
+    \draw[->] (b1) -- (c1);
+    \draw[->] (b2) -- (c2);
+    \draw[->] (b3) -- (c3);
+  \end{tikzpicture}
+  \caption{Materialização de uma operação semântica sob particionamento. Com \texttt{\$out} (a), os registros afetados de todos os \textit{shards} convergem para uma coleção temporária no \textit{shard} primário, anulando o particionamento. Com \texttt{\$merge} (b), cada \textit{shard} reescreve os seus próprios registros no lugar, sem que nada atravesse a rede rumo a um único nó.}
+  \label{fig:materializacao}
+\end{figure}
+
+A particularidade do modelo \textit{schemaless}, no entanto, não obriga um documento a ter o campo da chave de \textit{shard}, o que cria dois problemas. Primeiro, para distribuir a coleção, o MongoDB trata um documento sem o campo como se a chave valesse \texttt{null}, e todos esses documentos se acumulam em um mesmo \textit{chunk}, num único \textit{shard}. Segundo, o \texttt{\$merge} exige que toda cópia gravada tenha uma chave, visto que sem ela não há como roteá-la, recusando a escrita co o erro \texttt{Location51132}. Esse problema é mais grave pois, esse erro só surge depois que os outros \textit{shards} já gravaram as suas cópias, deixando a operação pela metade. Embora resolva apenas o último, a solução foi separar os casos baseado neste campo, de modo que registros sem a chave são reinseridos pelo \textit{driver} em lotes, uma inserção comum que o MongoDB aceita. Para a concentração de registros, foram feitas medidas sobre a limitação no capítulo seguinte.
+
+Por fim, a chave de \textit{shard} também decide como as consultas chegam nos dados. Uma consulta que fixa a chave é dirigida a um único \textit{shard}, enquanto uma que não a fixa é difundida a todos (Seção~\ref{sub:sharded-clusters}). Por isso, a escolha da chave tem uma importância além 
+do equilíbrio de armazenamento, ela define quais consultas permanecem baratas. E, como uma operação semântica pode mover valores de um lado a outro do espaço da chave, falando da coleção processada, ela realoca fisicamente os registros entre \textit{shards}. Esse e outros efeitos são examinados no Capítulo~\ref{cap:resultados}.
 
 %\section{Ferramental, infraestrutura e reprodutibilidade}
 %\label{sec:ferramental}

@@ -305,4 +305,27 @@ O MongoDB oferece também a repartição dos dados em \textit{sharded cluster}, 
   \item um ou mais roteadores \textbf{mongos} que recebem as consultas e, consultando os metadados, as encaminham.
 \end{itemize}
 
-É nesse encaminhamento que a escolha da chave é essencial, pois uma consulta que fixa a chave de \textit{shard} é dirigida apenas ao shard que a contém, enquanto uma que não a fixa é difundida a todos. E, como cada shard é um \textit{replica set}, as duas dimensões se combinam, isto é, um \textit{cluster} particionado é também replicado, e tudo o que vale para os \textit{replica sets} continua valendo dentro de cada shard.
+A chave de \textit{shard} pode distribuir os documentos de duas maneiras. Em uma chave \textbf{por faixa} (\textit{ranged}), na qual o domínio de valores é dividido em intervalos contíguos, com cada um atribuído a um \textit{shard}, fazendo com que valores próximos ficam no mesmo nó. Isso favorece consultas por intervalo, mas pode sobrecarregar um único \textit{shard} quando a chave cresce de forma monotônica, como uma data, e as inserções recentes se acumulam na última faixa. Por outro lado, em uma chave \textbf{por \textit{hash}}, quem decide a distribuição é um valor de dispersão (\textit{hash}), que espalha os documentos de maneira uniforme, independentemente da proximidade entre eles. Ele distribui melhor a carga de escrita, mas faz uma consulta por intervalo ir para vários \textit{shards}, pois valores vizinhos deixam de ser vizinhos. A Figura~\ref{fig:shard-key} ilustra as duas formas.
+
+\begin{figure}[htb]
+  \centering
+  \begin{tikzpicture}[font=\footnotesize,
+      shardbox/.style={draw, rounded corners=2pt, fill=black!4, align=center,
+                       inner sep=4pt, minimum height=1cm, minimum width=2cm}]
+    \node at (0.4,2.6) {valores da chave: \texttt{10, 11, 12, 20, 21, 30, 31}};
+    % (a) ranged: faixas contíguas
+    \node[anchor=base east] at (-3.1,1.0) {(a) \textit{ranged}};
+    \node[shardbox] at (-1.8,0.8) {\textbf{Shard 1}\\\texttt{10 11 12}};
+    \node[shardbox] at (0.4,0.8) {\textbf{Shard 2}\\\texttt{20 21}};
+    \node[shardbox] at (2.6,0.8) {\textbf{Shard 3}\\\texttt{30 31}};
+    % (b) hashed: espalhados
+    \node[anchor=base east] at (-3.1,-0.9) {(b) \textit{hashed}};
+    \node[shardbox] at (-1.8,-1.1) {\textbf{Shard 1}\\\texttt{11 30}};
+    \node[shardbox] at (0.4,-1.1) {\textbf{Shard 2}\\\texttt{10 21}};
+    \node[shardbox] at (2.6,-1.1) {\textbf{Shard 3}\\\texttt{12 20 31}};
+  \end{tikzpicture}
+  \caption{Duas formas de uma chave de \textit{shard} distribuir sete documentos (identificados por um código) entre três \textit{shards}.}
+  \label{fig:shard-key}
+\end{figure}
+
+A escolha da chave é fundamental também para o encaminhamento das consultas, pois uma busca que fixa a chave de \textit{shard} é dirigida apenas ao shard que a contém, enquanto uma que não a fixa é difundida a todos. E, como cada shard é um \textit{replica set}, as duas dimensões se combinam, isto é, um \textit{cluster} particionado é também replicado, e tudo o que vale para os \textit{replica sets} continua valendo dentro de cada shard.
