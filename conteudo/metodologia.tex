@@ -103,5 +103,50 @@ Antes de determinar a máquina responsável pelos resultados dos experimentos, m
 
 Por fim, o mesmo arcabouço pode ser executado tanto sobre um único \textit{host}, onde a topologia inteira é um conjunto de contêineres em uma só máquina, quanto sobre um \textit{cluster} real de várias máquinas na nuvem, com um \textit{shard} de nó único por máquina e uma máquina de controle abrigando o servidor de configuração e o roteador. Há uma fina camada de tradução sobre o provedor da infraestrutura em nuvem \texttt{gcloud}, junto aos scripts de inicialização e verificação de status, e o arcabouço de \textit{benchmark}, o qual o desconhece. A plataforma de computação em nuvem da Google foi escolhida meramente por facilidade em obter créditos durante a pesquisa, mas serviços de outros provedores são válidos para um funcionamento semelhante, variando conforme o \textit{hardware} das máquinas selecionadas.
 
-%\section{Método experimental}
-%\label{sec:metodo}
+\section{Método experimental}
+\label{sec:metodo}
+
+A partir das descrições das implementações das formas de distribuição e do ferramental que as opera, pode-se definir como a extesão foi avaliada. Os aspectos abordados variam conforme o eixo de extensão do experimento, calculando os custos de cada uma, de modo que eles foram organizados em duas séries independentes e operados sobre coleções personalizadas.
+
+A avaliação ocorre sobre dois conjuntos de dados que compartilham uma mesma interface, da qual um experimento não sabe qual corpus ele está agindo sobre. O \textbf{corpus sintético} é gerado automaticamente a partir de parâmetros configuráveis, os quais definem o número de registros, a assimetria da distribuição dos valores, o comprimento da cadeia de operações semânticas e a cardinalidade do campo escolhido como chave. Essas variáveis ajudam a criar um desequilíbrio controlado e reprodutível para os testes. Por outro lado, o \textbf{corpus real}, ou natural, atua sobre um dataset com valores reais que, neste trabalho, se trata do já mencionado DATASUS, que contém uma assimetria fixa. Cada corpus acompanha um conjunto de consultas geradas aleatoriamente, porém determinadas por uma \textit{seed}, que são reaproveitadas entre as execuções, mantendo a carga comparável.
+
+Aqui, vale descrever mais a fundo o DATASUS, um dataset que agrega em cada registro o número de óbitos de um município brasileiro por ano e causa. Devido ao tamanho do dataset original, 6.179.083 registros e 440,9 MB de dados, e da disposição das máquinas e tempo de computação, optou-se por um recorte que cobre cerca de um terço do corpus. Ele cobre a janela de 1988 a 2003, simétrica em torno de 1º de janeiro de 1996, data em que a CID-9 foi substituída pela CID-10. São dezesseis arquivos anuais e cerca de 1,99 milhão de registros divididos em 43\% ainda em CID-9 e 57\% já em CID-10. Sobre esses dados ocorrem as mesmas 220 operações semânticas, sendo 150 que traduzem, agrupam e desagrupam códigos de \texttt{cid} na virada de 1996 e 70 que renomeiam valores de \texttt{municipio}. A Tabela~\ref{tab:datasus-campos} a seguir apresenta os campos do conjunto.
+
+\begin{table}[htb]
+  \centering
+  \caption{Campos do recorte do DATASUS (janela de 1988 a 2003).}
+  \label{tab:datasus-campos}
+  \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{7.8cm} r@{}}
+    \toprule
+    Campo & Descrição & \makecell[r]{Valores\\distintos} \\
+    \midrule
+    \texttt{cid}         & Código da causa dos óbitos & 249 \\
+    \texttt{UF}          & Código da Unidade Federativa do município & 27 \\
+    \texttt{municipio}   & Nome do município do registro & 5.330 \\
+    \texttt{RefDate}     & Data de validade do registro (\texttt{valid\_from}) & 16 \\
+    \texttt{ano}         & Ano de origem do registro & 16 \\
+    \texttt{ocorrencias} & Número de óbitos agregados, o valor medido & 1.451 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+A primeira série, de replicação, é executada sobre as topologias replicadas e busca entender principalmente se a distribuição altera qual estratégia vence, \textit{rewrite} ou \textit{preprocess}, e por quê. São quatro experimentos:
+\begin{itemize}
+    \item \textbf{B1 - offloading de leitura:} o ganho de vazão ao direcionar as leituras de registros para os secundários, sem tirar a cadeia de versões do primário;
+    \item \textbf{B2 - custo da durabilidade:} quanto a durabilidade pesa em uma carga de inserção, variando o \textit{write concern} (\texttt{w:1}, \texttt{w:majority} e \texttt{w:all}) à medida que o conjunto de nós cresce;
+    \item \textbf{B3 - cruzamento estratégia-distribuição:} se a distribuição replicada, em diferentes cenários, altera qual estratégia vence;
+    \item \textbf{B4 - profundidade da cadeia:} o crescimento da latência de consulta conforme a cadeia de versões se alonga com operações uma sobre a outra.
+\end{itemize}
+
+Já a outra série, de particionamento, é obtida sobre as topologias particionadas, com a escala, isto é, o número de \textit{shards}, como eixo comum, e procura confirmar duas afirmações. A vantagem do \textit{rewrite} sobre o \textit{preprocess} cresce com o número de \textit{shards} e, num banco semanticamente evolutivo, a evolução realoca dados fisicamente, o que torna a escolha da chave de \textit{shard} um problema novo, com um custo em duas parcelas, aplicar a operação e reequilibrar depois. Ela reúne cinco experimentos:
+\begin{itemize}
+    \item \textbf{S1 - custo da operação:} quanto custa aplicar uma operação semântica e quantos dados ela move de um \textit{shard} a outro;
+    \item \textbf{S2 - reequilíbrio:} o custo de reequilibrar o \textit{cluster} depois desse deslocamento, com o balanceador ligado;
+    \item \textbf{S3 - roteamento da consulta:} o valor de ter a chave no filtro da consulta (direcionamento) contra a difusão a todos os \textit{shards} (\textit{broadcast});
+    \item \textbf{S4 - cruzamento estratégia-escala:} semelhante ao experimento da outra série (B3), mas com o número de \textit{shards} no eixo;
+    \item \textbf{S5 - chave ausente:} o custo de aceitar documentos sem o campo da chave, copiados pelo \textit{driver} em lotes, como visto na Seção~\ref{sec:ext-sharding}.
+\end{itemize}
+
+As métricas acompanham as particularidades de cada medição. Nos experimentos de carga contínua, com clientes concorrentes durante uma janela fixa, registram-se a vazão, em operações por segundo, e os percentis de latência (p50, p95 e p99). Nos experimentos de evento único, em que uma só operação é aplicada e cronometrada, registram-se o \textit{wall-clock time}, o número de documentos reescritos, quantos deles trocaram de \textit{shard} e a distribuição dos dados antes e depois. Essa distribuição é lida pelo roteador, pelo comando \texttt{\$shardedDataDistribution}, que separa os documentos que um \textit{shard} de fato possui dos documentos órfãos que ainda aguardam limpeza após uma migração, uma distinção necessária, pois sem ela uma contagem direta no \textit{shard} ficaria acima do real.
+
+Vale ressalta uma condição experimental declarada de forma explícita, o tamanho de \textit{chunk}. Como o tamanho padrão do MongoDB deixaria o balanceador inerte nos tamanhos de corpus que cabem no orçamento de tempo da campanha, ele é reduzido e o valor usado é registrado em cada linha de resultado.
