@@ -54,3 +54,28 @@ O empate nos modos de leitura nos secundários não é uma surpresa, pois aqui c
 
 O ganho, entretanto, não aparece ao aumentar o número de nós secundários de 2 para 4, mostrando que para o número de 6 clientes utilizado, poucos nós já são suficientes. Além disso, observa-se como uma máquina única apresenta uma medição mais instável, como esperado de um único nó sem balanceamento e nem a folga de uma réplica.
 
+\subsection{Custo da durabilidade (B2)}
+\label{sec:res-b2}
+
+O segundo experimento isola o custo de escrita da replicação para medir o quanto a vazão de inserção cai conforme se exige mais garantias de durabilidade. A carga é de somente escrita, mas sem evoluções semânticas, com seis clientes inserindo registros novos continuamente, comparando três níveis de \textit{write concern}:
+\begin{itemize}
+    \item \texttt{w:1}: a escrita é confirmada assim que o primário a grava;
+    \item \texttt{w:majority}: a confirmação só vem depois que a maioria dos membros persiste a escrita (dois no \texttt{rs3} e três no \texttt{rs5});
+    \item \texttt{w:all}: a confirmação exige que todos os membros persistam a escrita.
+\end{itemize}
+
+A Figura~\ref{fig:res-b2} apresenta a vazão de inserção para cada combinação de \textit{write concern} e topologia.
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=0.82\linewidth]{figuras/b2-custo-durabilidade.png}
+  \caption{Vazão de inserção por \textit{write concern} e topologia, em carga de somente escrita com seis clientes. As barras trazem a média de três repetições e o desvio.}
+  \label{fig:res-b2}
+\end{figure}
+
+No nó isolado, as inserções se mantém em 625 por segundo, pois, sem réplicas a confirmar o \textit{write concern} se resolve para o único nó. Esse empate demonstra o custo medido como sendo puramente a espera pela replicação, e não a garantia de durabilidade em si.
+
+Nos \textit{replica sets}, por outro lado, exigir mais durabilidade reduz a vazão de forma progressiva. Uma inserção só é confirmada quando um número suficiente de membros a persiste, dando à latência efetiva um piso dado pela ida e volta de replicação até o membro mais lento que aquele nível exige, de modo que subir a exigência eleva esse piso. O \texttt{w:majority} custa cerca de um quarto da vazão no \texttt{rs3}, de 709 para 530 inserções por segundo, e quase um terço no \texttt{rs5}, de 615 para 430, e o \texttt{w:all} diminui ainda mais.
+
+Mesmo com a confirmação imediata de \texttt{w:1}, o \texttt{rs3} supera o \texttt{rs5}, pois ainda há um processo secundário de transmissão do \textit{oplog} a cada secundário, alimentando quatro fluxos de replicação e disputando mais vCPUs. Um outro ponto de destaque é que, sob \texttt{w:all}, as duas topologias convergem para cerca de 400 inserções por segundo. Isso segue da análise anterior e do entendimento de que esperar o mais lento de membros idênticos e não saturados quase não piora de três para cinco nós. Segue-se desses fatores o motivo da queda percentual aparentar ser menor no \texttt{rs5}, de 35\%, do que no \texttt{rs3}, de 42\%.
+
