@@ -138,3 +138,33 @@ A causa da inversão está no custo da própria consulta, que cresce conforme a 
 \end{figure}
 
 Do ponto de vista da inserção de uma evolução semântica, o \textit{preprocess} perde muito conforme a profundidade da cadeia aumenta. Nos testes do B3, o custo de aplicar as 5 evoluções semânticas independentes era em torno de 10 segundos, um tempo de mesma magnitude da Figura~\ref{fig:res-b4-setup} para comprimento 1 de 1,1 segundo. Entretanto, aumentar a cadeia faz com que o sistema demore de 29 segundos na cadeia de cinco a 1160 segundos na de dez, cerca de 20 minutos. Por outro lado, o \textit{rewrite} naturalmente não é afetado por esse aumento, se mostrando uma opção interessante nesse contexto.
+
+\section{Particionamento (sintético)}
+\label{sec:res-particionamento}
+
+A série de partição percorre as topologias particionadas, com \textit{clusters} de um (\texttt{sh1}), quatro (\texttt{sh4}) e sete (\texttt{sh7}) \textit{shards}. Nesta seção, ela é executada sobre o corpus sintético no perfil \textit{medium} de cem mil registros e configuração de clientes igual a série B, 6 clientes concorrentes com janela de aquecimento e medição, onde cada célula é repetida três vezes. Além disso, a estratégia padrão é o \textit{preprocess}, que expõe a movimentação dos registros entre os shards.
+
+Dois outros parâmetros foram adicionados como centro da análise, a assimetria da distribuição dos valores e a cardinalidade do campo escolhido como chave, que na maioria dos experimentos a seguir aparecem como assimetria 3\footnote{A assimetria é o expoente de uma distribuição de Zipf sobre os valores do domínio. A probabilidade de gerar o valor de ordem $r$ é proporcional a $1/(r+1)^{s}$, em que $s$ é a assimetria. Com $s = 0$ a distribuição é uniforme. Com $s = 3$, o segundo valor mais comum recebe $1/2^{3} = 1/8$ do peso do primeiro, o terceiro $1/3^{3}$, e assim por diante, concentrando as ocorrências nos primeiros valores.} e cardinalidade 20. A chave é caracterizada pelos dois tipos já abordados, \textit{hashed} e \textit{ranged}, e três papéis:
+\begin{itemize}
+    \item \texttt{id}: o próprio \texttt{\_id} do MongoDB, alheio aos dados;
+    \item \texttt{data}: um campo comum que não evolui (\texttt{f0});
+    \item \texttt{evolved}: o campo que a operação semântica reescreve (\texttt{evo0}).
+\end{itemize}
+
+O par \texttt{id}\textperiodcentered\texttt{ranged} é o controle negativo da matriz, isto é, uma chave que de propósito não reparte a coleção e serve de referência para ler as demais, concentrando tudo em um único \textit{shard}. Os três primeiros experimentos percorrem essa matriz de seis chaves, seguindo para o S4 que fixa uma delas para variar a estratégia, e o S5 que varia a fração de documentos sem o campo da chave.
+
+\subsection{Custo da operação e realocação semântica (S1)}
+\label{sec:res-s1}
+
+O primeiro experimento aplica uma única operação semântica, uma tradução do valor dominante, e cronometra quanto ela custa e quantos documentos mudam de \textit{shard}. A materialização por \texttt{\$merge} reescreve cerca de 83 mil cópias, as afetadas pela evolução. A Figura~\ref{fig:res-s1} mostra o tempo de aplicação para cada chave e número de \textit{shards}.
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/s1-custo-operacao.png}
+  \caption{Tempo para aplicar uma operação semântica (tradução do valor dominante, cerca de 83 mil cópias), por chave e número de \textit{shards}, sob assimetria 3 e cardinalidade 20. As barras trazem a média de três repetições e o desvio.}
+  \label{fig:res-s1}
+\end{figure}
+
+Aplicar a operação custa de 8 a 15 segundos e quase não melhora com mais \textit{shards}, exceto pela chave \texttt{id}\textperiodcentered\texttt{hashed} que cai de 12,2 para 4,1 e 2,8 segundos de \texttt{sh1} a \texttt{sh7}. Ela é a única que espalha as escritas do \texttt{\$merge} por igual entre os \textit{shards}, de modo que mais nós dividem o trabalho. Nas demais, a assimetria concentra as cópias do valor dominante em um único \textit{shard}, que vira o gargalo da escrita e não melhora ao adicionar máquinas.
+
+O resultado mais interessante está em quantos documentos trocam de \textit{shard}. Como esperado, apenas a chave \texttt{evolved} realoca dados, pois se trata de um novo valor e um novo roteamento de shard. As chaves \texttt{id} e \texttt{data}, cujo valor não muda, não realocam nada, exceto por um ruído de 0,4 a 0,7\% do \texttt{id}\textperiodcentered\texttt{hashed} por conta do \texttt{\_id} novo de cada cópia. A realocação acaba sendo binária, ou seja, a cada repetição todas as cópias do valor dominante ou se mantém do mesmo \textit{shard} ou migram em bloco, de acordo com o novo valor. Essa é a evidência do problema do particionamento semântico, onde trazer a chave como um campo que evolui defaz a colocação dos dados e gera custo de reequilíbrio.
