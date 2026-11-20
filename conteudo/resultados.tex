@@ -79,3 +79,38 @@ Nos \textit{replica sets}, por outro lado, exigir mais durabilidade reduz a vaz�
 
 Mesmo com a confirmação imediata de \texttt{w:1}, o \texttt{rs3} supera o \texttt{rs5}, pois ainda há um processo secundário de transmissão do \textit{oplog} a cada secundário, alimentando quatro fluxos de replicação e disputando mais vCPUs. Um outro ponto de destaque é que, sob \texttt{w:all}, as duas topologias convergem para cerca de 400 inserções por segundo. Isso segue da análise anterior e do entendimento de que esperar o mais lento de membros idênticos e não saturados quase não piora de três para cinco nós. Segue-se desses fatores o motivo da queda percentual aparentar ser menor no \texttt{rs5}, de 35\%, do que no \texttt{rs3}, de 42\%.
 
+\subsection{Estratégia sob distribuição (B3)}
+\label{sec:res-b3}
+
+O terceiro experimento investiga se a distribuição altera qual das duas estratégias de evolução semântica predomina nos cenários propostos. Elas são avaliadas sobre os dois alvos de leitura (primário e secundários) e dois perfis de carga, \textit{read\_heavy} (95\% de leituras) e \textit{write\_heavy} (95\% de escritas), mantendo \texttt{w:majority} e cinco operações independentes, como em B1. A Figura~\ref{fig:res-b3} apresenta a vazão de cada combinação.
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/b3-estrategia-distribuicao.png}
+  \caption{Vazão por estratégia, alvo de leitura e topologia, nos perfis \textit{read\_heavy} (95\% de leituras) e \textit{write\_heavy} (95\% de escritas) de operações que os 6 clientes fazem em 40 segundos. As barras trazem a média de três repetições e o desvio.}
+  \label{fig:res-b3}
+\end{figure}
+
+O \textit{preprocess} lidera o \textit{rewrite} em todas as dez configurações. A causa está no alto custo de leitura do \textit{rewrite}, que altera a consulta previamente, em comparação ao preprocessamento que já envia a requisição aos nós. Focando no perfil \textit{write\_heavy}, em que apenas 5\% das operações são leituras, há uma quantidade suficiente de leituras para travar o \textit{rewrite} e impedir o cliente de emitir mais operações. A Tabela~\ref{tab:res-b3-p95} mostra que em um percentil de 95\% das inserções, vê-se na reescrita uma estrategia no mínimo 2,75 vezes mais rápida que a outra.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabular}{@{}l cc cc@{}}
+    \toprule
+    & \multicolumn{2}{c}{p95 de leitura} & \multicolumn{2}{c}{p95 de escrita} \\
+    \cmidrule(lr){2-3} \cmidrule(lr){4-5}
+    Configuração & \textit{preprocess} & \textit{rewrite} & \textit{preprocess} & \textit{rewrite} \\
+    \midrule
+    \texttt{single}            & 762 & 2383 & 44 & 12 \\
+    \texttt{rs3} (primário)    & 826 & 2318 & 44 & 14 \\
+    \texttt{rs3} (secundários) & 604 & 1457 & 50 & 12 \\
+    \texttt{rs5} (primário)    & 928 & 2410 & 44 & 16 \\
+    \texttt{rs5} (secundários) & 449 &  919 & 66 & 23 \\
+    \bottomrule
+  \end{tabular}
+  \caption{p95 de leitura e de escrita por estratégia na configuração no perfil \textit{write\_heavy}, em milissegundos. Média de três repetições.}
+  \label{tab:res-b3-p95}
+\end{table}
+
+Outro ponto interessante é que, ainda que o \textit{preprocess} sempre vença, ler dos secundários aumenta a eficiência e diminui a distância com o \textit{rewrite}, com este obtendo um proveito ainda maior. Em números, essa mudança de alvo de leitura corresponde a uma queda do p95 de leitura de 2,2 para 0,8 segundos no perfil \textit{read\_heavy} da reescrita e a uma quase dobra do da vazão conforme o número de réplicas dobrou, em ambos os perfis. O caso do \textit{preprocess}, já analisado na Seção~\ref{sec:res-b1}, no entanto, é de manter a performance do \texttt{rs3} no \texttt{rs5}. A possível causa para esse comportamento é que a leitura do \textit{rewrite}, por reescrever a consulta e varrer os registros, é pesada o bastante para que o gargalo seja a capacidade de processamento dos próprios nós de dados. Logo, cada secundário acrescentado soma capacidade de computação, e a vazão cresce com a contagem deles. Já a outra estratégia, por ter uma leitura pouco custosa, encontra nos dois secundários poder computacional suficiente, mas encontra na concorrência dos seis clientes um gargalo.
+
