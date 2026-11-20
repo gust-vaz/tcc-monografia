@@ -114,3 +114,27 @@ O \textit{preprocess} lidera o \textit{rewrite} em todas as dez configurações.
 
 Outro ponto interessante é que, ainda que o \textit{preprocess} sempre vença, ler dos secundários aumenta a eficiência e diminui a distância com o \textit{rewrite}, com este obtendo um proveito ainda maior. Em números, essa mudança de alvo de leitura corresponde a uma queda do p95 de leitura de 2,2 para 0,8 segundos no perfil \textit{read\_heavy} da reescrita e a uma quase dobra do da vazão conforme o número de réplicas dobrou, em ambos os perfis. O caso do \textit{preprocess}, já analisado na Seção~\ref{sec:res-b1}, no entanto, é de manter a performance do \texttt{rs3} no \texttt{rs5}. A possível causa para esse comportamento é que a leitura do \textit{rewrite}, por reescrever a consulta e varrer os registros, é pesada o bastante para que o gargalo seja a capacidade de processamento dos próprios nós de dados. Logo, cada secundário acrescentado soma capacidade de computação, e a vazão cresce com a contagem deles. Já a outra estratégia, por ter uma leitura pouco custosa, encontra nos dois secundários poder computacional suficiente, mas encontra na concorrência dos seis clientes um gargalo.
 
+\subsection{Profundidade da cadeia (B4)}
+\label{sec:res-b4}
+
+O último experimento da série mostra como o custo de uma consulta cresce à medida que as operações semânticas se empilham, e se a estratégia muda o formato desse crescimento. Diferentemente dos anteriores, o corpus é construído como uma única cadeia de tradução linear, de comprimento um, cinco ou dez, e toda consulta é sorteada entre os valores dessa cadeia, de modo que resolvê-la exige percorrê-la por inteiro. A carga é de somente leitura, sob \texttt{w:majority}, lida do primário. Como não há escrita nem \textit{offloading}, as três topologias coincidem, isolando o efeito da profundidade e da estratégia. A Figura~\ref{fig:res-b4} as apresenta lado a lado.
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/b4-profundidade-vazao.png}
+  \caption{Vazão de leitura por estratégia e comprimento da cadeia, em carga de somente leitura, nas três topologias. As linhas trazem a média de três repetições.}
+  \label{fig:res-b4}
+\end{figure}
+
+De imediato observa-se que a estratégia vencedora se inverte em relação ao B3. Embora as duas fiquem mais lentas conforme a cadeia se aprofunda, o \textit{rewrite} lê mais rápido que o \textit{preprocess} em toda profundidade, e a vantagem cresce com ela, de cerca de 1,6 vez na cadeia de comprimento um para 2,6 vezes na de dez. Vale ressaltar que as consultas são aleatórias e podem operar sobre valores não evoluídos, onde a reescrita não é necessária.
+
+A causa da inversão está no custo da própria consulta, que cresce conforme a profundidade. Sem índice sobre o campo consultado, cada leitura varre a coleção inteira, cobrindo o valor ao longo de toda a cadeia para resolvê-lo. No \textit{preprocess}, essa busca percorre a coleção materializada avaliando, em cada documento, um predicado que combina o valor evoluído, o valor original e a faixa de versão, sendo que esse predicado aumenta conforme a profundidade. Já no \textit{rewrite}, a varredura age sobre a coleção original, a qual é menor, e é a projeção que leva cada registro à versão mais recente, aplicando-se apenas aos registros que são compatíveis. Logo, varrer documentos mais pesados com um predicado que cresce custa mais do que varrer a coleção original e projetar apenas o resultado.
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=0.75\linewidth]{figuras/b4-profundidade-setup.png}
+  \caption{Tempo para aplicar as todas as operações que constroem a cadeia, por estratégia e comprimento, em escala logarítmica (\texttt{rs3}). A operação de evolução ocorre depois que todos os registros são inseridos. As linhas trazem a média de três repetições.}
+  \label{fig:res-b4-setup}
+\end{figure}
+
+Do ponto de vista da inserção de uma evolução semântica, o \textit{preprocess} perde muito conforme a profundidade da cadeia aumenta. Nos testes do B3, o custo de aplicar as 5 evoluções semânticas independentes era em torno de 10 segundos, um tempo de mesma magnitude da Figura~\ref{fig:res-b4-setup} para comprimento 1 de 1,1 segundo. Entretanto, aumentar a cadeia faz com que o sistema demore de 29 segundos na cadeia de cinco a 1160 segundos na de dez, cerca de 20 minutos. Por outro lado, o \textit{rewrite} naturalmente não é afetado por esse aumento, se mostrando uma opção interessante nesse contexto.
