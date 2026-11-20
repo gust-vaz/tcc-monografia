@@ -230,3 +230,25 @@ Para as chaves que carregam dados reais, \texttt{data} e \texttt{evolved}, o bal
 O controle negativo evidencia a diferença ao mostrar \texttt{id}\textperiodcentered\texttt{ranged} como a única chave que o balanceador efetivamente reequilibra, pois o desequilíbrio dele vem do acúmulo de inserções no último \textit{chunk}, composto de muitos \textit{chunks} pequenos cujas fronteiras caem entre identificadores distintos e que, por isso, admitem divisão e migração. Nesse caso, o balanceador move de 47 a 55 MB ao longo de cerca de três minutos e reduz o índice de desequilíbrio de 4,0 e 7,0 para aproximadamente 1,1. É o custo de um reequilíbrio efetivo, e confirma que a economia observada nas chaves semânticas advém da impotência do balanceador diante do \textit{jumbo chunk} e não da ausência de desequilíbrio. A \texttt{id}\textperiodcentered\texttt{hashed}, por outro lado, já distribui os documentos de forma uniforme, então não tem nada a mover. No \texttt{sh1}, os cerca de 25 segundos correspondem apenas ao tempo fixo que o balanceador leva para verificar que não há ação a tomar.
 
 Junto ao S1, o resultado apresenta o custo do particionamento semântico. Quando a chave é o campo que evolui, a operação realoca fisicamente os dados, e o desequilíbrio remanescente, devido a assimetria da distribuição, não pode ser desfeito pelo balanceador. Logo, a segunda parcela do custo não traz ganhos, uma vez que o desequilíbrio que permanece. Essa impossibilidade de reequilibrar atinge qualquer chave de baixa cardinalidade sobre dados reais.
+
+\subsection{Direcionamento e broadcast (S3)}
+\label{sec:res-s3}
+
+O terceiro experimento mede quanto vale ter a chave no filtro da consulta. Sob carga contínua, cada célula executa um de dois tipos de consulta sobre a matriz de chaves: 
+\begin{itemize}
+  \item A \textbf{direcionada}: fixa a chave de \textit{shard} no filtro e é roteada a um único \textit{shard};
+  \item O \textbf{\textit{broadcast}}: não a fixa e é difundida a todos. 
+\end{itemize}
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/s3-direcionamento.png}
+  \caption{Vazão de consultas direcionadas e \textit{broadcast} por chave e número de \textit{shards}, em modo \textit{preprocess}. As barras trazem a média de três repetições e o desvio. As chaves \texttt{id} só têm a variante \textit{broadcast}, pois as consultas da carga não filtram pelo \texttt{\_id}.}
+  \label{fig:res-s3}
+\end{figure}
+
+A consulta direcionada mantém-se praticamente constante, entre 15 e 19 consultas por segundo, em todas as chaves e topologias. Fixar a chave roteia a consulta a um só \textit{shard}, então o custo independe do número de \textit{clusters}. 
+
+Por outro lado, da consulta \textit{broadcast} esperava-se o oposto, uma piora com mais \textit{shards}, já que a difusão alcança todos eles. O que se observa, porém, é uma melhora. Nas chaves bem distribuídas, as \textit{hashed}, a vazão sobe de cerca de 8,5 consultas por segundo no \texttt{sh1} para 15 no \texttt{sh4} e 17 a 18 no \texttt{sh7}, aproximando-se da direcionada. A explicação é que, embora a consulta alcance todos os \textit{shards}, cada um varre apenas a sua fração do corpus, e as varreduras ocorrem em paralelo. Nesta escala, o ganho de dividir o trabalho entre mais nós supera o custo de consultar todos eles, e a penalidade do espalhamento não é muito grande.
+
+Esse ganho, entretanto, depende de uma boa distribuição, visto que nas chaves \textit{ranged}, cujos dados permaneceram concentrados em um único \textit{shard}, o \textit{broadcast} quase não melhora. Por exemplo, a \texttt{data}\textperiodcentered\texttt{ranged} está ausente, pois uma verificação prévia descartou essas células ao confirmar que o valor dominante havia colocado todos os documentos em um só \textit{shard}, não restando particionamento a medir.
