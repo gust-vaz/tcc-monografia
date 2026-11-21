@@ -285,3 +285,17 @@ O carregamento inicial, em contrapartida, cobra um preço alto ao particionament
   \caption{Tempo de preparo do corpus, em segundos, por estratégia e número de \textit{shards}, com chave \texttt{data}\textperiodcentered\texttt{hashed} para a inserção dos cem mil registros e a aplicação das operações semânticas. Média de três repetições.}
   \label{tab:res-s4-setup}
 \end{table}
+
+\subsection{O preço do schemaless (S5)}
+\label{sec:res-s5}
+
+O último experimento mede o custo da promessa \textit{schemaless} do MellowDB sob particionamento. O sistema permite que um documento não tenha o campo da chave de \textit{shard}, mas um documento assim não pode passar pelo \texttt{\$merge}, que o rejeita por não ter como roteá-lo. Então, O MellowDB separa esses documentos e os reinsere pelo \textit{driver}, em lotes, no qual cada lote custa uma ida e volta ao servidor, um processo mais lento que a passagem única do \texttt{\$merge}. A chave de \textit{shard} é a \texttt{data}\textperiodcentered\texttt{hashed}, no campo \texttt{f0}, que a operação não altera, de modo que um documento pode não tê-la e ainda assim ser evoluído. O experimento varia a fração de documentos sem esse campo e cronometra a aplicação de uma tradução sobre o campo que evolui (\texttt{evo0}), em modo \textit{preprocess}.
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{figuras/s5-schemaless.png}
+  \caption{Tempo para aplicar uma operação em função da fração de documentos sem o campo da chave (\texttt{f0}), por número de \textit{shards}. As linhas trazem a média de três repetições e o desvio.}
+  \label{fig:res-s5}
+\end{figure}
+
+Mesmo com todos os documentos sem o campo, aplicar a operação leva cerca de 13 segundos, contra os cerca de 8 com nenhum faltando, um acréscimo de aproximadamente 1,6 vez. Substituir o \texttt{\$merge} pela reinserção via \textit{driver} encarece a operação, mas não a torna comparativamente inviável. Em um caso mais neutro, com até metade dos documentos sem o campo, o tempo praticamente não muda nos \textit{clusters} de quatro e sete \textit{shards}, ficando entre 7 e 9 segundos, e cresce apenas de forma gradual no \textit{shard} único. A flexibilidade do \textit{schemaless}, portanto, é acessível mesmo sob particionamento.
