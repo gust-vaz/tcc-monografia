@@ -196,8 +196,8 @@ Para as chaves que carregam dados reais, \texttt{data} e \texttt{evolved}, o bal
     \node[shard] (s2a) at (-4.0,0.9) {};
     \node[shard] (s3a) at (-2.6,0.9) {};
     \node[jumbo, minimum height=1.9cm] at (-5.4,0.9) {\texttt{A}};
-    \node[chunk, minimum height=0.5cm] at (-4.0,0.05) {\texttt{B}};
-    \node[chunk, minimum height=0.5cm] at (-2.6,0.05) {\texttt{C}};
+    \node[chunk, minimum height=0.5cm] at (-4.0,0.2) {\texttt{B}};
+    \node[chunk, minimum height=0.5cm] at (-2.6,0.2) {\texttt{C}};
     \node[lbl] at (-5.4,-0.6) {shard 1};
     \node[lbl] at (-4.0,-0.6) {shard 2};
     \node[lbl] at (-2.6,-0.6) {shard 3};
@@ -205,16 +205,16 @@ Para as chaves que carregam dados reais, \texttt{data} e \texttt{evolved}, o bal
     \draw[->, dashed] (-5.0,2.45) to[bend left=25] (-4.4,2.45);
     \node at (-4.7,2.58) {$\times$};
     % divisória
-    \draw[gray!45] (-1.35,3.6) -- (-1.35,-1.0);
+    \draw[gray!45] (-0.75,3.6) -- (-0.75,-1.0);
     % (b) muitos valores
     \node[lbl, anchor=west] at (0.1,3.3) {(b) chave com muitos valores (\texttt{id})};
     \node[shard] (s1b) at (1.2,0.9) {};
     \node[shard] (s2b) at (2.6,0.9) {};
     \node[shard] (s3b) at (4.0,0.9) {};
     \foreach \x in {1.2,2.6,4.0} {
-      \node[chunk, minimum height=0.42cm] at (\x,0.05) {};
-      \node[chunk, minimum height=0.42cm] at (\x,0.57) {};
-      \node[chunk, minimum height=0.42cm] at (\x,1.09) {};
+      \node[chunk, minimum height=0.42cm] at (\x,0.15) {};
+      \node[chunk, minimum height=0.42cm] at (\x,0.67) {};
+      \node[chunk, minimum height=0.42cm] at (\x,1.19) {};
     }
     \node[lbl] at (1.2,-0.6) {shard 1};
     \node[lbl] at (2.6,-0.6) {shard 2};
@@ -252,3 +252,36 @@ A consulta direcionada mantém-se praticamente constante, entre 15 e 19 consulta
 Por outro lado, da consulta \textit{broadcast} esperava-se o oposto, uma piora com mais \textit{shards}, já que a difusão alcança todos eles. O que se observa, porém, é uma melhora. Nas chaves bem distribuídas, as \textit{hashed}, a vazão sobe de cerca de 8,5 consultas por segundo no \texttt{sh1} para 15 no \texttt{sh4} e 17 a 18 no \texttt{sh7}, aproximando-se da direcionada. A explicação é que, embora a consulta alcance todos os \textit{shards}, cada um varre apenas a sua fração do corpus, e as varreduras ocorrem em paralelo. Nesta escala, o ganho de dividir o trabalho entre mais nós supera o custo de consultar todos eles, e a penalidade do espalhamento não é muito grande.
 
 Esse ganho, entretanto, depende de uma boa distribuição, visto que nas chaves \textit{ranged}, cujos dados permaneceram concentrados em um único \textit{shard}, o \textit{broadcast} quase não melhora. Por exemplo, a \texttt{data}\textperiodcentered\texttt{ranged} está ausente, pois uma verificação prévia descartou essas células ao confirmar que o valor dominante havia colocado todos os documentos em um só \textit{shard}, não restando particionamento a medir.
+
+\subsection{Cruzamento estratégia-escala (S4)}
+\label{sec:res-s4}
+
+O quarto experimento fixa uma chave que provou se distribuir bem, a \texttt{data}\textperiodcentered\texttt{hashed}, e varre a escala de um a sete \textit{shards}, comparando o \textit{preprocess} e o \textit{rewrite} nos perfis \textit{read\_heavy} e \textit{write\_heavy}. A ideia é repetir a análise do B3 no contexto de particionamento. A Figura~\ref{fig:res-s4} apresenta a vazão de cada combinação.
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/s4-estrategia-escala.png}
+  \caption{Vazão por estratégia e número de \textit{shards}, com a chave \texttt{data}\textperiodcentered\texttt{hashed}, nos perfis \textit{read\_heavy} e \textit{write\_heavy}. As linhas trazem a média de três repetições e o desvio.}
+  \label{fig:res-s4}
+\end{figure}
+
+Semelhante ao B3, o \textit{preprocess} vence em todas as configurações, mas o \textit{rewrite} escala mais. A razão de vazão de \textit{rewrite} sobre \textit{preprocess} sobe de 0,26 para 0,51 no perfil de leitura e de 0,46 para 0,76 no de escrita, de \texttt{sh1} a \texttt{sh7}. O gargalo das réplicas também aparece nesse cenário, com o \textit{preprocess} saturando conforme mais máquinas, pois a velocidade de leitura não ganha muito com a distribuição e encontra o gargalo nos clientes, enquanto o \textit{rewrite} ainda tem margem para aproveitar o paralelismo.
+
+O carregamento inicial, em contrapartida, cobra um preço alto ao particionamento. Inserir os cem mil registros com uma chave \textit{hashed} em um \textit{cluster} de quatro ou sete \textit{shards} leva de 1200 a 1400 segundos, contra cerca de 14 no \textit{shard} único. Isso ocorre principalmente pois cada inserção atravessa o roteador até o seu \textit{shard} e o \textit{cluster} ainda administra a divisão dos \textit{chunks} durante a carga. Além disso, nessa fase, o \textit{preprocess} paga cerca do dobro do \textit{rewrite}, por materializar as versões a mais.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabular}{@{}l cc cc@{}}
+    \toprule
+    & \multicolumn{2}{c}{Registros} & \multicolumn{2}{c}{Operações} \\
+    \cmidrule(lr){2-3} \cmidrule(lr){4-5}
+    Topologia & \textit{preprocess} & \textit{rewrite} & \textit{preprocess} & \textit{rewrite} \\
+    \midrule
+    \texttt{sh1} &   14,2 &   6,4 & 11,5 & 0,1 \\
+    \texttt{sh4} & 1209,0 & 601,4 &  6,9 & 0,2 \\
+    \texttt{sh7} & 1371,4 & 671,9 &  6,3 & 0,1 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Tempo de preparo do corpus, em segundos, por estratégia e número de \textit{shards}, com chave \texttt{data}\textperiodcentered\texttt{hashed} para a inserção dos cem mil registros e a aplicação das operações semânticas. Média de três repetições.}
+  \label{tab:res-s4-setup}
+\end{table}
