@@ -1,12 +1,12 @@
 \chapter{Resultados}
 \label{cap:resultados}
 
-Este capítulo reúne os custos medidos nas duas séries de experimentos descritas na Seção~\ref{sec:metodo}. Aprofunda-se na Seção~\ref{sec:res-ambiente} o ambiente concreto em que a campanha de experimentos foi executada, seguindo para os testes da série de replicação sobre o corpus sintético para depois avaliá-lo sobre a série de particionamento. Por fim, foram selecionados alguns \textit{benchmarks} de \textit{sharding} para avaliar sobre o corpus real e uma síntese dos principais resultados e ressalvas quanto às execuções.
+Este capítulo reúne os custos medidos nas duas séries de experimentos descritas na Seção~\ref{sec:metodo}. Aprofunda-se na Seção~\ref{sec:res-ambiente} o ambiente concreto em que a campanha de experimentos foi executada, seguindo para os testes da série de replicação sobre o corpus sintético para depois avaliá-lo na série de particionamento. Por fim, foram selecionados alguns \textit{benchmarks} de \textit{sharding} para avaliá-los sobre o corpus real.
 
 \section{Ambiente de execução}
 \label{sec:res-ambiente}
 
-Toda a campanha foi executada em um \textit{cluster} real na nuvem, sobre a plataforma \textit{Google Cloud Platform}, na zona \texttt{us-central1-b}, com uma instância de MongoDB \texttt{8.0.12} empacotada em Docker por máquina virtual. A topologia reserva uma máquina de controle que hospeda o servidor de configuração, o roteador \textit{mongos} e o \textit{runner} que efetua os clientes de carga, do tipo \texttt{e2-standard-4}. Já os nós de dados ficam em máquinas \texttt{e2-highcpu-2} separadas, uma para cada \texttt{mongod}. Esses nós seriam as o isolado e \textit{replica sets} de três e de cinco na replicação, e os \textit{clusters} de um, de quatro e de sete no particionamento. A Tabela~\ref{tab:res-maquinas} apresenta as principais características de cada máquina.
+Toda a campanha foi executada em um \textit{cluster} real na nuvem, sobre a plataforma \textit{Google Cloud Platform}, na zona \texttt{us-central1-b}, com uma instância de MongoDB \texttt{8.0.12} empacotada em Docker por máquina virtual. A topologia reserva uma máquina de controle que hospeda o servidor de configuração, o roteador \textit{mongos} e o \textit{runner} que executa os clientes de carga, do tipo \texttt{e2-standard-4}. Já os nós de dados ficam em máquinas \texttt{e2-highcpu-2} separadas, uma para cada \texttt{mongod}. Esses nós são o isolado e os \textit{replica sets} de três e de cinco na replicação, e os \textit{clusters} de um, de quatro e de sete no particionamento. A Tabela~\ref{tab:res-maquinas} apresenta as principais características de cada máquina.
 
 \begin{table}[htb]
   \centering
@@ -27,18 +27,18 @@ Em cada nó de dados, o cache do \texttt{WiredTiger}, o mecanismo de armazenamen
 \section{Replicação}
 \label{sec:res-replicacao}
 
-A série de replicação roda sobre o corpus sintético descrito na Seção~\ref{sec:metodo}, no perfil \textit{medium}, de cem mil registros, nas três topologias replicadas de nó isolado (\texttt{single}) e os \textit{replica sets} de três (\texttt{rs3}) e de cinco (\texttt{rs5}) nós. Cada célula da varredura emprega seis clientes concorrentes e, depois de uma janela de dez segundos de aquecimento que é descartada, mede durante quarenta segundos. Cada célula é repetida três vezes, e cada execução anexa as suas linhas ao mesmo esquema de CSV de saída. Os quatro experimentos a seguir percorrem essas topologias para isolar, individualmente, o ganho de distribuir leituras, o custo de distribuir escritas, o efeito da distribuição sobre a disputa entre as estratégias e o peso da cadeia de versões.
+A série de replicação roda sobre o corpus sintético descrito na Seção~\ref{sec:metodo}, no perfil \textit{medium}, de cem mil registros, nas três topologias de nó isolado (\texttt{single}) e os \textit{replica sets} de três (\texttt{rs3}) e de cinco (\texttt{rs5}) nós. Cada célula da varredura emprega seis clientes concorrentes e, depois de uma janela de dez segundos de aquecimento que é descartada, mede durante quarenta segundos. Cada célula é repetida três vezes, e cada execução anexa as suas linhas ao mesmo esquema de CSV de saída. Os quatro experimentos a seguir percorrem essas topologias para isolar, individualmente, o ganho de distribuir leituras, o custo de distribuir escritas, o efeito da distribuição sobre a disputa entre as estratégias e o peso da cadeia de versões.
 
 \subsection{Offloading de leitura (B1)}
 \label{sec:res-b1}
 
-O primeiro experimento mede se direcionar as leituras de registros aos secundários aumenta a vazão agregada sem tirar a cadeia de versões do primário. A carga é de somente leitura, em modo \textit{preprocess} e com \textit{write concern} \texttt{w:majority}, sobre o corpus sintético, ao qual se aplicam cinco operações semânticas independentes aplicadas a valores distintos, de modo que a resolução de uma consulta passa por, no máximo, uma delas.
+O primeiro experimento mede se direcionar as leituras de registros aos secundários aumenta a vazão agregada sem tirar a cadeia de versões do primário. A carga é de somente leitura, em modo \textit{preprocess} e com \textit{write concern} \texttt{w:majority}, sobre o corpus sintético, ao qual se aplicam cinco operações semânticas independentes, cada uma sobre um valor distinto, de modo que a resolução de uma consulta passa por, no máximo, uma delas.
 
-A carga percorre três alvos de leitura, na qual a Figura~\ref{fig:res-b1} apresenta os resultados das diferenças entre eles: 
+A carga percorre três alvos de leitura, cujas diferenças a Figura~\ref{fig:res-b1} apresenta: 
 \begin{itemize}
     \item O primário;
-    \item Os secundários em modo \textit{split}, onde os clientes se distribuem entre os secundários e leem os registros deles, mas a cadeia de versões continua sendo lida do primário;
-    \item Os secundários em modo \textit{single\_source}, em que tanto os registros quanto a cadeia vêm do mesmo secundário, considerando a possível defasagem que isso implicaria.
+    \item Os secundários em modo \texttt{split}, onde os clientes se distribuem entre os secundários e leem os registros deles, mas a cadeia de versões continua sendo lida do primário;
+    \item Os secundários em modo \texttt{single\_source}, em que tanto os registros quanto a cadeia vêm do mesmo secundário, considerando a possível defasagem que isso implicaria.
 \end{itemize}
 
 \begin{figure}[htb]
@@ -48,11 +48,11 @@ A carga percorre três alvos de leitura, na qual a Figura~\ref{fig:res-b1} apres
   \label{fig:res-b1}
 \end{figure}
 
-A análise dos resultados traz uma melhora significativa ao se direcionar as leituras aos secundários, pois a vazão sobe cerca de 58\% e a latência cai significativamente. No \texttt{rs3}, a vazão sobe de 10,6 para 16,7 consultas por segundo e o p95 cai de 723 para 503 ms, enquanto no \texttt{rs5}, de 11,0 para 17,4 consultas por segundo, com o p95 de 699 para 485 ms. Isso ocorre, principalmente, devido a ociosidade dos nós réplicas que, ao não sofrerem da replicação de escrita, mas, somente requisições de leitura, são capazes de tirar proveito da distribuição entre si para computá-las.
+Os resultados mostram uma melhora significativa ao se direcionarem as leituras aos secundários, pois a vazão sobe cerca de 58\% e a latência cai significativamente. No \texttt{rs3}, a vazão sobe de 10,6 para 16,7 consultas por segundo e o p95 cai de 723 para 503 ms, enquanto no \texttt{rs5}, de 11,0 para 17,4 consultas por segundo, com o p95 de 699 para 485 ms. Isso ocorre, principalmente, devido à ociosidade dos nós réplicas que, por não sofrerem com a replicação de escrita, recebendo somente requisições de leitura, são capazes de tirar proveito da distribuição entre si para computá-las.
 
-O empate nos modos de leitura nos secundários não é uma surpresa, pois aqui caberia uma análise de consistência por parte de um eventual usuário que o experimento deixou fora do escopo. Ao evitar escritas concorrentes a leituras, a cadeia de versões armazenada no primário não se difere dos secundários. No entanto, a paridade das vazões valida que é possível escalar as leituras horizontalmente sem abrir mão de uma cadeia única e autoritativa no primário, dentro das limitações desses testes.
+O empate nos modos de leitura nos secundários não é uma surpresa, visto que o ponto de divergência seria na parte da consistência que o experimento deixou fora do escopo. Ao evitar escritas concorrentes a leituras, a cadeia de versões armazenada no primário não difere da dos secundários. No entanto, a paridade das vazões sugere que é possível escalar as leituras horizontalmente sem abrir mão de uma cadeia única e autoritativa no primário.
 
-O ganho, entretanto, não aparece ao aumentar o número de nós secundários de 2 para 4, mostrando que para o número de 6 clientes utilizado, poucos nós já são suficientes. Além disso, observa-se como uma máquina única apresenta uma medição mais instável, como esperado de um único nó sem balanceamento e nem a folga de uma réplica.
+O ganho, entretanto, não aparece ao aumentar o número de nós secundários de 2 para 4, mostrando que para o número de 6 clientes utilizado, poucos nós já são suficientes.
 
 \subsection{Custo da durabilidade (B2)}
 \label{sec:res-b2}
@@ -61,7 +61,7 @@ O segundo experimento isola o custo de escrita da replicação para medir o quan
 \begin{itemize}
     \item \texttt{w:1}: a escrita é confirmada assim que o primário a grava;
     \item \texttt{w:majority}: a confirmação só vem depois que a maioria dos membros persiste a escrita (dois no \texttt{rs3} e três no \texttt{rs5});
-    \item \texttt{w:all}: a confirmação exige que todos os membros persistam a escrita.
+    \item \texttt{w:all} (construído a partir de \texttt{w:N}): a confirmação exige que todos os membros persistam a escrita.
 \end{itemize}
 
 A Figura~\ref{fig:res-b2} apresenta a vazão de inserção para cada combinação de \textit{write concern} e topologia.
@@ -73,11 +73,11 @@ A Figura~\ref{fig:res-b2} apresenta a vazão de inserção para cada combinaçã
   \label{fig:res-b2}
 \end{figure}
 
-No nó isolado, as inserções se mantém em 625 por segundo, pois, sem réplicas a confirmar o \textit{write concern} se resolve para o único nó. Esse empate demonstra o custo medido como sendo puramente a espera pela replicação, e não a garantia de durabilidade em si.
+No nó isolado, as inserções se mantêm na média de 625 por segundo, pois, sem réplicas a confirmar, o \textit{write concern} se resolve para o único nó. Esse empate demonstra o custo medido como sendo puramente a espera pela replicação, e não a garantia de durabilidade em si.
 
 Nos \textit{replica sets}, por outro lado, exigir mais durabilidade reduz a vazão de forma progressiva. Uma inserção só é confirmada quando um número suficiente de membros a persiste, dando à latência efetiva um piso dado pela ida e volta de replicação até o membro mais lento que aquele nível exige, de modo que subir a exigência eleva esse piso. O \texttt{w:majority} custa cerca de um quarto da vazão no \texttt{rs3}, de 709 para 530 inserções por segundo, e quase um terço no \texttt{rs5}, de 615 para 430, e o \texttt{w:all} diminui ainda mais.
 
-Mesmo com a confirmação imediata de \texttt{w:1}, o \texttt{rs3} supera o \texttt{rs5}, pois ainda há um processo secundário de transmissão do \textit{oplog} a cada secundário, alimentando quatro fluxos de replicação e disputando mais vCPUs. Um outro ponto de destaque é que, sob \texttt{w:all}, as duas topologias convergem para cerca de 400 inserções por segundo. Isso segue da análise anterior e do entendimento de que esperar o mais lento de membros idênticos e não saturados quase não piora de três para cinco nós. Segue-se desses fatores o motivo da queda percentual aparentar ser menor no \texttt{rs5}, de 35\%, do que no \texttt{rs3}, de 42\%.
+Mesmo com a confirmação imediata de \texttt{w:1}, o \texttt{rs3} supera o \texttt{rs5}, pois ainda há um processo secundário de transmissão do \textit{oplog} a cada secundário, alimentando quatro fluxos de replicação e disputando mais vCPUs. Um outro ponto de destaque é que, sob \texttt{w:all}, as duas topologias convergem para cerca de 400 inserções por segundo. Isso segue da análise anterior e do entendimento de que esperar o mais lento de membros idênticos e não saturados quase não piora de três para cinco nós. Isso explica por que a queda percentual aparenta ser menor no \texttt{rs5}, de 35\%, do que no \texttt{rs3}, de 42\%.
 
 \subsection{Estratégia sob distribuição (B3)}
 \label{sec:res-b3}
@@ -91,7 +91,7 @@ O terceiro experimento investiga se a distribuição altera qual das duas estrat
   \label{fig:res-b3}
 \end{figure}
 
-O \textit{preprocess} lidera o \textit{rewrite} em todas as dez configurações. A causa está no alto custo de leitura do \textit{rewrite}, que altera a consulta previamente, em comparação ao preprocessamento que já envia a requisição aos nós. Focando no perfil \textit{write\_heavy}, em que apenas 5\% das operações são leituras, há uma quantidade suficiente de leituras para travar o \textit{rewrite} e impedir o cliente de emitir mais operações. A Tabela~\ref{tab:res-b3-p95} mostra que em um percentil de 95\% das inserções, vê-se na reescrita uma estrategia no mínimo 2,75 vezes mais rápida que a outra.
+O \textit{preprocess} lidera o \textit{rewrite} em todas as dez configurações. A causa está no alto custo de leitura do \textit{rewrite}, que altera a consulta previamente, em comparação ao pré-processamento que já envia a requisição aos nós. Focando no perfil \textit{write\_heavy}, em que apenas 5\% das operações são leituras, há uma quantidade suficiente de leituras para travar o \textit{rewrite} e impedir o cliente de emitir mais operações. A Tabela~\ref{tab:res-b3-p95} mostra que em um percentil de 95\% das inserções, vê-se na reescrita uma estratégia no mínimo 2,75 vezes mais rápida que a outra.
 
 \begin{table}[htb]
   \centering
@@ -108,11 +108,11 @@ O \textit{preprocess} lidera o \textit{rewrite} em todas as dez configurações.
     \texttt{rs5} (secundários) & 449 &  919 & 66 & 23 \\
     \bottomrule
   \end{tabular}
-  \caption{p95 de leitura e de escrita por estratégia na configuração no perfil \textit{write\_heavy}, em milissegundos. Média de três repetições.}
+  \caption{p95 de leitura e de escrita por estratégia e configuração, no perfil \textit{write\_heavy}, em milissegundos. Média de três repetições.}
   \label{tab:res-b3-p95}
 \end{table}
 
-Outro ponto interessante é que, ainda que o \textit{preprocess} sempre vença, ler dos secundários aumenta a eficiência e diminui a distância com o \textit{rewrite}, com este obtendo um proveito ainda maior. Em números, essa mudança de alvo de leitura corresponde a uma queda do p95 de leitura de 2,2 para 0,8 segundos no perfil \textit{read\_heavy} da reescrita e a uma quase dobra do da vazão conforme o número de réplicas dobrou, em ambos os perfis. O caso do \textit{preprocess}, já analisado na Seção~\ref{sec:res-b1}, no entanto, é de manter a performance do \texttt{rs3} no \texttt{rs5}. A possível causa para esse comportamento é que a leitura do \textit{rewrite}, por reescrever a consulta e varrer os registros, é pesada o bastante para que o gargalo seja a capacidade de processamento dos próprios nós de dados. Logo, cada secundário acrescentado soma capacidade de computação, e a vazão cresce com a contagem deles. Já a outra estratégia, por ter uma leitura pouco custosa, encontra nos dois secundários poder computacional suficiente, mas encontra na concorrência dos seis clientes um gargalo.
+Outro ponto interessante é que, ainda que o \textit{preprocess} sempre vença, ler dos secundários aumenta a eficiência e diminui a distância para o \textit{rewrite}, que obtém um proveito ainda maior. Em números, essa mudança de alvo de leitura corresponde a uma queda do p95 de leitura de 2,2 para 0,8 segundos no perfil \textit{read\_heavy} da reescrita e a uma quase duplicação da vazão conforme o número de réplicas dobrou, em ambos os perfis. O caso do \textit{preprocess}, já analisado na Seção~\ref{sec:res-b1}, no entanto, é de manter a performance do \texttt{rs3} no \texttt{rs5}. A possível causa para esse comportamento é que a leitura do \textit{rewrite}, por reescrever a consulta e varrer os registros, é pesada o bastante para que o gargalo seja a capacidade de processamento dos próprios nós de dados. Logo, cada secundário acrescentado soma capacidade de computação, e a vazão cresce com a contagem deles. Já a outra estratégia, por ter uma leitura pouco custosa, possui nos dois secundários poder computacional suficiente, mas encontra na concorrência dos seis clientes um gargalo.
 
 \subsection{Profundidade da cadeia (B4)}
 \label{sec:res-b4}
@@ -126,23 +126,23 @@ O último experimento da série mostra como o custo de uma consulta cresce à me
   \label{fig:res-b4}
 \end{figure}
 
-De imediato observa-se que a estratégia vencedora se inverte em relação ao B3. Embora as duas fiquem mais lentas conforme a cadeia se aprofunda, o \textit{rewrite} lê mais rápido que o \textit{preprocess} em toda profundidade, e a vantagem cresce com ela, de cerca de 1,6 vez na cadeia de comprimento um para 2,6 vezes na de dez. Vale ressaltar que as consultas são aleatórias e podem operar sobre valores não evoluídos, onde a reescrita não é necessária.
+De imediato observa-se que a estratégia vencedora se inverte em relação ao B3. Embora as duas fiquem mais lentas conforme a cadeia se aprofunda, o \textit{rewrite} lê mais rápido que o \textit{preprocess} em toda profundidade, e a vantagem cresce com ela, de cerca de 1,6 vezes na cadeia de comprimento um para 2,6 vezes na de dez. Vale ressaltar que as consultas são aleatórias e podem operar sobre valores não evoluídos, nos quais a reescrita não é necessária.
 
 A causa da inversão está no custo da própria consulta, que cresce conforme a profundidade. Sem índice sobre o campo consultado, cada leitura varre a coleção inteira, cobrindo o valor ao longo de toda a cadeia para resolvê-lo. No \textit{preprocess}, essa busca percorre a coleção materializada avaliando, em cada documento, um predicado que combina o valor evoluído, o valor original e a faixa de versão, sendo que esse predicado aumenta conforme a profundidade. Já no \textit{rewrite}, a varredura age sobre a coleção original, a qual é menor, e é a projeção que leva cada registro à versão mais recente, aplicando-se apenas aos registros que são compatíveis. Logo, varrer documentos mais pesados com um predicado que cresce custa mais do que varrer a coleção original e projetar apenas o resultado.
 
 \begin{figure}[htb]
   \centering
   \includegraphics[width=0.75\linewidth]{figuras/b4-profundidade-setup.png}
-  \caption{Tempo para aplicar as todas as operações que constroem a cadeia, por estratégia e comprimento, em escala logarítmica (\texttt{rs3}). A operação de evolução ocorre depois que todos os registros são inseridos. As linhas trazem a média de três repetições.}
+  \caption{Tempo para aplicar todas as operações que constroem a cadeia, por estratégia e comprimento, em escala logarítmica (\texttt{rs3}). A operação de evolução ocorre depois que todos os registros são inseridos. As linhas trazem a média de três repetições.}
   \label{fig:res-b4-setup}
 \end{figure}
 
-Do ponto de vista da inserção de uma evolução semântica, o \textit{preprocess} perde muito conforme a profundidade da cadeia aumenta. Nos testes do B3, o custo de aplicar as 5 evoluções semânticas independentes era em torno de 10 segundos, um tempo de mesma magnitude da Figura~\ref{fig:res-b4-setup} para comprimento 1 de 1,1 segundo. Entretanto, aumentar a cadeia faz com que o sistema demore de 29 segundos na cadeia de cinco a 1160 segundos na de dez, cerca de 20 minutos. Por outro lado, o \textit{rewrite} naturalmente não é afetado por esse aumento, se mostrando uma opção interessante nesse contexto.
+Do ponto de vista da inserção de uma evolução semântica, o \textit{preprocess} perde muito conforme a profundidade da cadeia aumenta. Nos testes do B3, o custo de aplicar as 5 evoluções semânticas independentes era em torno de 10 segundos, da mesma ordem do tempo da Figura~\ref{fig:res-b4-setup} para a cadeia de comprimento um, de 1,1 segundo. Entretanto, aumentar a cadeia faz com que o sistema demore de 29 segundos na cadeia de cinco a 1160 segundos na de dez, cerca de 20 minutos. Por outro lado, o \textit{rewrite}, naturalmente, não é muito afetado por esse aumento, se mostrando uma opção interessante nesse contexto.
 
 \section{Particionamento (sintético)}
 \label{sec:res-particionamento}
 
-A série de partição percorre as topologias particionadas, com \textit{clusters} de um (\texttt{sh1}), quatro (\texttt{sh4}) e sete (\texttt{sh7}) \textit{shards}. Nesta seção, ela é executada sobre o corpus sintético no perfil \textit{medium} de cem mil registros e configuração de clientes igual a série B, 6 clientes concorrentes com janela de aquecimento e medição, onde cada célula é repetida três vezes. Além disso, a estratégia padrão é o \textit{preprocess}, que expõe a movimentação dos registros entre os shards.
+A série de partição percorre as topologias particionadas, com \textit{clusters} de um (\texttt{sh1}), quatro (\texttt{sh4}) e sete (\texttt{sh7}) \textit{shards}. Nesta seção, ela é executada sobre o corpus sintético no perfil \textit{medium} e configuração de clientes igual à série B, com cada célula sendo repetida três vezes. Além disso, a estratégia padrão é o \textit{preprocess}, que expõe a movimentação dos registros entre os shards.
 
 Dois outros parâmetros foram adicionados como centro da análise, a assimetria da distribuição dos valores e a cardinalidade do campo escolhido como chave, que na maioria dos experimentos a seguir aparecem como assimetria 3\footnote{A assimetria é o expoente de uma distribuição de Zipf sobre os valores do domínio. A probabilidade de gerar o valor de ordem $r$ é proporcional a $1/(r+1)^{s}$, em que $s$ é a assimetria. Com $s = 0$ a distribuição é uniforme. Com $s = 3$, o segundo valor mais comum recebe $1/2^{3} = 1/8$ do peso do primeiro, o terceiro $1/3^{3}$, e assim por diante, concentrando as ocorrências nos primeiros valores.} e cardinalidade 20. A chave é caracterizada pelos dois tipos já abordados, \textit{hashed} e \textit{ranged}, e três papéis:
 \begin{itemize}
@@ -167,12 +167,12 @@ O primeiro experimento aplica uma única operação semântica, uma tradução d
 
 Aplicar a operação custa de 8 a 15 segundos e quase não melhora com mais \textit{shards}, exceto pela chave \texttt{id}\textperiodcentered\texttt{hashed} que cai de 12,2 para 4,1 e 2,8 segundos de \texttt{sh1} a \texttt{sh7}. Ela é a única que espalha as escritas do \texttt{\$merge} por igual entre os \textit{shards}, de modo que mais nós dividem o trabalho. Nas demais, a assimetria concentra as cópias do valor dominante em um único \textit{shard}, que vira o gargalo da escrita e não melhora ao adicionar máquinas.
 
-O resultado mais interessante está em quantos documentos trocam de \textit{shard}. Como esperado, apenas a chave \texttt{evolved} realoca dados, pois se trata de um novo valor e um novo roteamento de shard. As chaves \texttt{id} e \texttt{data}, cujo valor não muda, não realocam nada, exceto por um ruído de 0,4 a 0,7\% do \texttt{id}\textperiodcentered\texttt{hashed} por conta do \texttt{\_id} novo de cada cópia. A realocação acaba sendo binária, ou seja, a cada repetição todas as cópias do valor dominante ou se mantém do mesmo \textit{shard} ou migram em bloco, de acordo com o novo valor. Essa é a evidência do problema do particionamento semântico, onde trazer a chave como um campo que evolui defaz a colocação dos dados e gera custo de reequilíbrio.
+O resultado mais interessante está em quantos documentos trocam de \textit{shard}. Como esperado, apenas a chave \texttt{evolved} realoca dados, pois se trata de um novo valor e um novo roteamento de \textit{shard}. As chaves \texttt{id} e \texttt{data}, cujo valor não muda, não realocam nada, exceto por um ruído de 0,4 a 0,7\% do \texttt{id}\textperiodcentered\texttt{hashed} por conta do \texttt{\_id} novo de cada cópia. A realocação acaba sendo binária, ou seja, a cada repetição todas as cópias do valor dominante ou se mantêm no mesmo \textit{shard} ou migram em bloco, de acordo com o novo valor. Essa é a evidência do problema do particionamento semântico, em que usar como chave um campo que evolui desfaz a colocação dos dados e gera custo de reequilíbrio.
 
 \subsection{O preço de reequilibrar (S2)}
 \label{sec:res-s2}
 
-A segunda parcela do custo é reequilibrar o \textit{cluster} depois da operação. Sobre o mesmo estado que o S1 deixou, liga-se o balanceador do MongoDB e medem-se os dados que ele move\footnote{Zero MB movidos não significa que o balanceador não fez nada. Isso pode indicar que o \textit{cluster} já estava equilibrado ou que os \textit{chunks} migrados estavam vazios, caso em que a contagem de \textit{chunks} muda sem que dado algum se desloque e o desequilíbrio permaneça.}, o tempo até convergir e, sobretudo, se o equilíbrio é de fato restaurado, comparando o desequilíbrio antes e depois. A Figura~\ref{fig:res-s2} traz as métricas relacionadas.
+A segunda parcela do custo é reequilibrar o \textit{cluster} depois da operação. Sobre o mesmo estado que o S1 deixou, liga-se o balanceador do MongoDB e medem-se os dados que ele move\footnote{0~MB movidos não significa que o balanceador não fez nada. Isso pode indicar que o \textit{cluster} já estava equilibrado ou que os \textit{chunks} migrados estavam vazios, caso em que a contagem de \textit{chunks} muda sem que dado algum se desloque e o desequilíbrio permaneça.}, o tempo até convergir e, sobretudo, se o equilíbrio é de fato restaurado, comparando o desequilíbrio antes e depois. A Figura~\ref{fig:res-s2} traz as métricas relacionadas.
 
 \begin{figure}[htb]
   \centering
@@ -181,7 +181,7 @@ A segunda parcela do custo é reequilibrar o \textit{cluster} depois da operaç�
   \label{fig:res-s2}
 \end{figure}
 
-Para as chaves que carregam dados reais, \texttt{data} e \texttt{evolved}, o balanceador move cerca de 1 MB e termina em poucas dezenas de segundos, um custo aparentemente baixo. No entanto, esse custo não corresponde a uma correção, visto que o índice de desequilíbrio quase não se altera, caindo de 3,37 para 3,32 no \texttt{evolved}\textperiodcentered\texttt{hashed} e de 6,25 para 6,21 no \texttt{data}\textperiodcentered\texttt{hashed}, ambos no \texttt{sh7}. Se trata de uma limitação estrutural em que o balanceador só reequilibra migrando \textit{chunks} inteiros entre \textit{shards}, e um \textit{chunk} só pode ser dividido numa fronteira entre valores de chave distintos. Sob baixa cardinalidade e assimetria, o valor dominante sozinho excede o tamanho de um \textit{chunk} e forma um \textit{jumbo chunk} (Figura~\ref{fig:res-chunks}), que não admite divisão, por não haver fronteira interna entre documentos de mesmo valor, nem migração, recusada pelo servidor por exceder o limite. O balanceador o ignora, e o desequilíbrio permanece. O baixo custo medido reflete, assim, a impossibilidade de agir, e não a facilidade da tarefa.
+Para as chaves que carregam dados reais, \texttt{data} e \texttt{evolved}, o balanceador move cerca de 1 MB e termina em poucas dezenas de segundos, um custo aparentemente baixo. No entanto, esse custo não corresponde a uma correção, visto que o índice de desequilíbrio quase não se altera, caindo de 3,37 para 3,32 no \texttt{evolved}\textperiodcentered\texttt{hashed} e de 6,25 para 6,21 no \texttt{data}\textperiodcentered\texttt{hashed}, ambos no \texttt{sh7}. Trata-se de uma limitação estrutural em que o balanceador só reequilibra migrando \textit{chunks} inteiros entre \textit{shards}, e um \textit{chunk} só pode ser dividido numa fronteira entre valores de chave distintos. Sob baixa cardinalidade e assimetria, o valor dominante sozinho excede o tamanho de um \textit{chunk} e forma um \textit{jumbo chunk} (Figura~\ref{fig:res-chunks}), que não admite divisão, por não haver fronteira interna entre documentos de mesmo valor, nem migração, recusada pelo servidor por exceder o limite. O balanceador o ignora, e o desequilíbrio permanece. O baixo custo medido reflete, assim, a impossibilidade de agir, e não a facilidade da tarefa.
 
 \begin{figure}[htb]
   \centering
@@ -229,7 +229,7 @@ Para as chaves que carregam dados reais, \texttt{data} e \texttt{evolved}, o bal
 
 O controle negativo evidencia a diferença ao mostrar \texttt{id}\textperiodcentered\texttt{ranged} como a única chave que o balanceador efetivamente reequilibra, pois o desequilíbrio dele vem do acúmulo de inserções no último \textit{chunk}, composto de muitos \textit{chunks} pequenos cujas fronteiras caem entre identificadores distintos e que, por isso, admitem divisão e migração. Nesse caso, o balanceador move de 47 a 55 MB ao longo de cerca de três minutos e reduz o índice de desequilíbrio de 4,0 e 7,0 para aproximadamente 1,1. É o custo de um reequilíbrio efetivo, e confirma que a economia observada nas chaves semânticas advém da impotência do balanceador diante do \textit{jumbo chunk} e não da ausência de desequilíbrio. A \texttt{id}\textperiodcentered\texttt{hashed}, por outro lado, já distribui os documentos de forma uniforme, então não tem nada a mover. No \texttt{sh1}, os cerca de 25 segundos correspondem apenas ao tempo fixo que o balanceador leva para verificar que não há ação a tomar.
 
-Junto ao S1, o resultado apresenta o custo do particionamento semântico. Quando a chave é o campo que evolui, a operação realoca fisicamente os dados, e o desequilíbrio remanescente, devido a assimetria da distribuição, não pode ser desfeito pelo balanceador. Logo, a segunda parcela do custo não traz ganhos, uma vez que o desequilíbrio que permanece. Essa impossibilidade de reequilibrar atinge qualquer chave de baixa cardinalidade sobre dados reais.
+Junto ao S1, o resultado apresenta o custo do particionamento semântico. Quando a chave é o campo que evolui, a operação realoca fisicamente os dados, e o desequilíbrio remanescente, devido à assimetria da distribuição, não pode ser desfeito pelo balanceador. Logo, a segunda parcela do custo não traz ganhos, uma vez que o desequilíbrio permanece. Essa impossibilidade de reequilibrar atinge qualquer chave de baixa cardinalidade sobre dados reais.
 
 \subsection{Direcionamento e broadcast (S3)}
 \label{sec:res-s3}
@@ -247,7 +247,7 @@ O terceiro experimento mede quanto vale ter a chave no filtro da consulta. Sob c
   \label{fig:res-s3}
 \end{figure}
 
-A consulta direcionada mantém-se praticamente constante, entre 15 e 19 consultas por segundo, em todas as chaves e topologias. Fixar a chave roteia a consulta a um só \textit{shard}, então o custo independe do número de \textit{clusters}. 
+A consulta direcionada mantém-se praticamente constante, entre 15 e 19 consultas por segundo, em todas as chaves e topologias. Fixar a chave roteia a consulta a um só \textit{shard}, então o custo independe do número de \textit{shards}. 
 
 Por outro lado, da consulta \textit{broadcast} esperava-se o oposto, uma piora com mais \textit{shards}, já que a difusão alcança todos eles. O que se observa, porém, é uma melhora. Nas chaves bem distribuídas, as \textit{hashed}, a vazão sobe de cerca de 8,5 consultas por segundo no \texttt{sh1} para 15 no \texttt{sh4} e 17 a 18 no \texttt{sh7}, aproximando-se da direcionada. A explicação é que, embora a consulta alcance todos os \textit{shards}, cada um varre apenas a sua fração do corpus, e as varreduras ocorrem em paralelo. Nesta escala, o ganho de dividir o trabalho entre mais nós supera o custo de consultar todos eles, e a penalidade do espalhamento não é muito grande.
 
@@ -289,7 +289,7 @@ O carregamento inicial, em contrapartida, cobra um preço alto ao particionament
 \subsection{O preço do schemaless (S5)}
 \label{sec:res-s5}
 
-O último experimento mede o custo da promessa \textit{schemaless} do MellowDB sob particionamento. O sistema permite que um documento não tenha o campo da chave de \textit{shard}, mas um documento assim não pode passar pelo \texttt{\$merge}, que o rejeita por não ter como roteá-lo. Então, O MellowDB separa esses documentos e os reinsere pelo \textit{driver}, em lotes, no qual cada lote custa uma ida e volta ao servidor, um processo mais lento que a passagem única do \texttt{\$merge}. A chave de \textit{shard} é a \texttt{data}\textperiodcentered\texttt{hashed}, no campo \texttt{f0}, que a operação não altera, de modo que um documento pode não tê-la e ainda assim ser evoluído. O experimento varia a fração de documentos sem esse campo e cronometra a aplicação de uma tradução sobre o campo que evolui (\texttt{evo0}), em modo \textit{preprocess}.
+O último experimento mede o custo da promessa \textit{schemaless} do MellowDB sob particionamento. A chave de \textit{shard} é a \texttt{data}\textperiodcentered\texttt{hashed}, no campo \texttt{f0}, que a operação não altera, na qual um documento pode não tê-la e ainda assim ser evoluído. O experimento varia a fração de documentos sem esse campo e cronometra a aplicação de uma tradução sobre o campo que evolui (\texttt{evo0}), em modo \textit{preprocess}.
 
 \begin{figure}[htb]
   \centering
@@ -298,14 +298,14 @@ O último experimento mede o custo da promessa \textit{schemaless} do MellowDB s
   \label{fig:res-s5}
 \end{figure}
 
-Mesmo com todos os documentos sem o campo, aplicar a operação leva cerca de 13 segundos, contra os cerca de 8 com nenhum faltando, um acréscimo de aproximadamente 1,6 vez. Substituir o \texttt{\$merge} pela reinserção via \textit{driver} encarece a operação, mas não a torna comparativamente inviável. Em um caso mais neutro, com até metade dos documentos sem o campo, o tempo praticamente não muda nos \textit{clusters} de quatro e sete \textit{shards}, ficando entre 7 e 9 segundos, e cresce apenas de forma gradual no \textit{shard} único. A flexibilidade do \textit{schemaless}, portanto, é acessível mesmo sob particionamento.
+Mesmo com todos os documentos sem o campo, aplicar a operação leva cerca de 13 segundos, contra os cerca de 8 com nenhum faltando, um acréscimo de aproximadamente 1,6 vezes. Substituir o \texttt{\$merge} pela reinserção via \textit{driver} encarece a operação, mas não a torna comparativamente inviável. Em um caso mais neutro, com até metade dos documentos sem o campo, o tempo praticamente não muda nos \textit{clusters} de quatro e sete \textit{shards}, ficando entre 7 e 9 segundos, e cresce apenas de forma gradual no \textit{shard} único. A flexibilidade do \textit{schemaless}, portanto, é acessível mesmo sob particionamento.
 
 \section{Particionamento do corpus real}
 \label{sec:res-real}
 
 Para verificar se as descobertas do corpus sintético se sustentam sobre dados reais, os três primeiros experimentos da série S foram repetidos sobre o corpus DATASUS descrito na Seção~\ref{sec:metodo}.
 
-Aplicar a transição repete o padrão do S1 sintético, visto na Figura~\ref{fig:res-real-s1}. As chaves \textit{hashed} paralelizam a materialização e aceleram com a escala, de modo que a \texttt{data}\textperiodcentered\texttt{hashed} (\texttt{UF}) cai cerca de quatro vezes de \texttt{sh1} a \texttt{sh7}, e a \texttt{id}\textperiodcentered\texttt{hashed} chega a dez vezes. Na chave que evolui, a \texttt{evolved}\textperiodcentered\texttt{hashed} (\texttt{cid}), observa-se um ganho menor, apenas cerca de duas vezes, porque a operação reescreve justamente o campo da chave e parte das cópias é roteada a outro \textit{shard}. As chaves \textit{ranged} continuam estagnadas no mesmo custo de tempo.
+Aplicar a transição repete o padrão do S1 sintético, visto na Figura~\ref{fig:res-real-s1}. As chaves \textit{hashed} paralelizam a materialização e aceleram com a escala, de modo que a \texttt{data}\textperiodcentered\texttt{hashed} (\texttt{UF}) cai cerca de quatro vezes de \texttt{sh1} a \texttt{sh7}, e a \texttt{id}\textperiodcentered\texttt{hashed} chega a dez vezes. Na chave que evolui, a \texttt{evolved}\textperiodcentered\texttt{hashed} (\texttt{cid}), observa-se um ganho menor, apenas cerca de duas vezes, porque a operação reescreve justamente o campo da chave e parte das cópias é roteada a outro \textit{shard}. As chaves \textit{ranged} mantêm o mesmo custo de tempo.
 
 \begin{figure}[htb]
   \centering
@@ -314,7 +314,7 @@ Aplicar a transição repete o padrão do S1 sintético, visto na Figura~\ref{fi
   \label{fig:res-real-s1}
 \end{figure}
 
-O reequilíbrio apresenta a maior diferença em relação ao sintético, sobretudo devido ao volume de dados. Naquele cenário, a chave semântica movia cerca de 1 MB, enquanto neste, a \texttt{evolved}\textperiodcentered\texttt{hashed} (\texttt{cid}) carrega uma quantidade maior, na qual o balanceador move de 36 a 42 MB ao longo de 200 a 280 segundos (Figura~\ref{fig:res-real-s2}). A causa é o crescimento da coleção de 2 para 3,6 milhões de documentos, concentrados nos valores da CID-10. As chaves \textit{ranged}, por outro lado, seguem irremediáveis, com a \texttt{id}\textperiodcentered\texttt{ranged} movendo de 105 a 116 MB sem alcançar o equilíbrio, e várias células \textit{ranged} não convergindo dentro do limite de tempo, com o desequilíbrio em torno de 4 em \texttt{sh4} e 7 em \texttt{sh7}. Confirmando novamente, assim, a impossibilidade de reequilibrar chaves de baixa cardinalidade.
+O reequilíbrio apresenta a maior diferença em relação ao sintético, sobretudo devido ao volume de dados. Naquele cenário, a chave semântica movia cerca de 1 MB, enquanto neste, a \texttt{evolved}\textperiodcentered\texttt{hashed} (\texttt{cid}) carrega uma quantidade maior, e o balanceador move de 36 a 42 MB ao longo de 200 a 280 segundos (Figura~\ref{fig:res-real-s2}). A causa é o crescimento da coleção de 2 para 3,6 milhões de documentos, concentrados nos valores da CID-10. As chaves \textit{ranged}, por outro lado, seguem irremediáveis, com a \texttt{id}\textperiodcentered\texttt{ranged} movendo de 105 a 116 MB sem alcançar o equilíbrio, e várias células \textit{ranged} não convergindo dentro do limite de tempo, com o desequilíbrio em torno de 4 em \texttt{sh4} e 7 em \texttt{sh7}. Confirma-se, assim, a impossibilidade de reequilibrar chaves de baixa cardinalidade.
 
 \begin{figure}[htb]
   \centering
@@ -323,7 +323,7 @@ O reequilíbrio apresenta a maior diferença em relação ao sintético, sobretu
   \label{fig:res-real-s2}
 \end{figure}
 
-Nas consultas sob carga, o valor do direcionamento mostra-se condicional ao volume do resultado (Figura~\ref{fig:res-real-s3}). Uma consulta por \texttt{UF} devolve centenas de milhares de registros, no qual quase todo o custo está no tamanho do resultado, e não no roteamento. Uma consulta sobre um campo de cardinalidade maior, mais seletiva e difundida, como por \texttt{municipio}, escala com os \textit{shards}. A \texttt{evolved}\textperiodcentered\texttt{hashed} evidencia isso ao passar de 37 para 157 consultas por segundo de \texttt{sh1} a \texttt{sh4}, com o p95 caindo de 410 para 75 ms. Para o \texttt{evolved}\textperiodcentered\texttt{ranged}, no entanto, com mais de 94\% dos dados em um só \textit{shard}, ela não escala. Por fim, o \textit{rewrite} é impraticável nesse volume, pois completa cerca de uma consulta por janela de quarenta segundos, com p95 de até nove minutos, o que impediu medi-lo e é, em si, um resultado sobre o limite da estratégia para consultas amplas sobre milhões de registros.
+Nas consultas sob carga, o valor do direcionamento mostra-se condicional ao volume do resultado (Figura~\ref{fig:res-real-s3}). Uma consulta por \texttt{UF} devolve centenas de milhares de registros, em que quase todo o custo está no tamanho do resultado, e não no roteamento. Uma consulta sobre um campo de cardinalidade maior, mais seletiva e difundida, como por \texttt{municipio}, escala com os \textit{shards}. A \texttt{evolved}\textperiodcentered\texttt{hashed} evidencia isso ao passar de 37 para 157 consultas por segundo de \texttt{sh1} a \texttt{sh4}, com o p95 caindo de 410 para 75 ms. Para o \texttt{evolved}\textperiodcentered\texttt{ranged}, no entanto, com mais de 94\% dos dados em um só \textit{shard}, ela não escala. Por fim, o \textit{rewrite} é impraticável nesse volume, pois completa cerca de uma consulta por janela de quarenta segundos, com p95 de até nove minutos, o que impediu medi-lo e é, em si, um resultado sobre o limite da estratégia para consultas amplas sobre milhões de registros.
 
 \begin{figure}[htb]
   \centering
