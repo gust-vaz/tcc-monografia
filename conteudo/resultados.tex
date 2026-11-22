@@ -172,7 +172,7 @@ O resultado mais interessante está em quantos documentos trocam de \textit{shar
 \subsection{O preço de reequilibrar (S2)}
 \label{sec:res-s2}
 
-A segunda parcela do custo é reequilibrar o \textit{cluster} depois da operação. Sobre o mesmo estado que o S1 deixou, liga-se o balanceador do MongoDB e medem-se os dados que ele move, o tempo até convergir e, sobretudo, se o equilíbrio é de fato restaurado, comparando o desequilíbrio antes e depois. A Figura~\ref{fig:res-s2} traz as métricas relacionadas.
+A segunda parcela do custo é reequilibrar o \textit{cluster} depois da operação. Sobre o mesmo estado que o S1 deixou, liga-se o balanceador do MongoDB e medem-se os dados que ele move\footnote{Zero MB movidos não significa que o balanceador não fez nada. Isso pode indicar que o \textit{cluster} já estava equilibrado ou que os \textit{chunks} migrados estavam vazios, caso em que a contagem de \textit{chunks} muda sem que dado algum se desloque e o desequilíbrio permaneça.}, o tempo até convergir e, sobretudo, se o equilíbrio é de fato restaurado, comparando o desequilíbrio antes e depois. A Figura~\ref{fig:res-s2} traz as métricas relacionadas.
 
 \begin{figure}[htb]
   \centering
@@ -299,3 +299,35 @@ O último experimento mede o custo da promessa \textit{schemaless} do MellowDB s
 \end{figure}
 
 Mesmo com todos os documentos sem o campo, aplicar a operação leva cerca de 13 segundos, contra os cerca de 8 com nenhum faltando, um acréscimo de aproximadamente 1,6 vez. Substituir o \texttt{\$merge} pela reinserção via \textit{driver} encarece a operação, mas não a torna comparativamente inviável. Em um caso mais neutro, com até metade dos documentos sem o campo, o tempo praticamente não muda nos \textit{clusters} de quatro e sete \textit{shards}, ficando entre 7 e 9 segundos, e cresce apenas de forma gradual no \textit{shard} único. A flexibilidade do \textit{schemaless}, portanto, é acessível mesmo sob particionamento.
+
+\section{Particionamento do corpus real}
+\label{sec:res-real}
+
+Para verificar se as descobertas do corpus sintético se sustentam sobre dados reais, os três primeiros experimentos da série S foram repetidos sobre o corpus DATASUS descrito na Seção~\ref{sec:metodo}.
+
+Aplicar a transição repete o padrão do S1 sintético, visto na Figura~\ref{fig:res-real-s1}. As chaves \textit{hashed} paralelizam a materialização e aceleram com a escala, de modo que a \texttt{data}\textperiodcentered\texttt{hashed} (\texttt{UF}) cai cerca de quatro vezes de \texttt{sh1} a \texttt{sh7}, e a \texttt{id}\textperiodcentered\texttt{hashed} chega a dez vezes. Na chave que evolui, a \texttt{evolved}\textperiodcentered\texttt{hashed} (\texttt{cid}), observa-se um ganho menor, apenas cerca de duas vezes, porque a operação reescreve justamente o campo da chave e parte das cópias é roteada a outro \textit{shard}. As chaves \textit{ranged} continuam estagnadas no mesmo custo de tempo.
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/real-s1-operacao.png}
+  \caption{Tempo para aplicar a transição CID-9 para CID-10 no corpus real, por chave e número de \textit{shards}. As barras trazem a média de três repetições e o desvio.}
+  \label{fig:res-real-s1}
+\end{figure}
+
+O reequilíbrio apresenta a maior diferença em relação ao sintético, sobretudo devido ao volume de dados. Naquele cenário, a chave semântica movia cerca de 1 MB, enquanto neste, a \texttt{evolved}\textperiodcentered\texttt{hashed} (\texttt{cid}) carrega uma quantidade maior, na qual o balanceador move de 36 a 42 MB ao longo de 200 a 280 segundos (Figura~\ref{fig:res-real-s2}). A causa é o crescimento da coleção de 2 para 3,6 milhões de documentos, concentrados nos valores da CID-10. As chaves \textit{ranged}, por outro lado, seguem irremediáveis, com a \texttt{id}\textperiodcentered\texttt{ranged} movendo de 105 a 116 MB sem alcançar o equilíbrio, e várias células \textit{ranged} não convergindo dentro do limite de tempo, com o desequilíbrio em torno de 4 em \texttt{sh4} e 7 em \texttt{sh7}. Confirmando novamente, assim, a impossibilidade de reequilibrar chaves de baixa cardinalidade.
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/real-s2-reequilibrio.png}
+  \caption{Dados movidos pelo balanceador após a transição, por chave e número de \textit{shards}. As células \textit{ranged} sem convergência têm o valor medido no limite de tempo. As barras trazem a média de três repetições e o desvio.}
+  \label{fig:res-real-s2}
+\end{figure}
+
+Nas consultas sob carga, o valor do direcionamento mostra-se condicional ao volume do resultado (Figura~\ref{fig:res-real-s3}). Uma consulta por \texttt{UF} devolve centenas de milhares de registros, no qual quase todo o custo está no tamanho do resultado, e não no roteamento. Uma consulta sobre um campo de cardinalidade maior, mais seletiva e difundida, como por \texttt{municipio}, escala com os \textit{shards}. A \texttt{evolved}\textperiodcentered\texttt{hashed} evidencia isso ao passar de 37 para 157 consultas por segundo de \texttt{sh1} a \texttt{sh4}, com o p95 caindo de 410 para 75 ms. Para o \texttt{evolved}\textperiodcentered\texttt{ranged}, no entanto, com mais de 94\% dos dados em um só \textit{shard}, ela não escala. Por fim, o \textit{rewrite} é impraticável nesse volume, pois completa cerca de uma consulta por janela de quarenta segundos, com p95 de até nove minutos, o que impediu medi-lo e é, em si, um resultado sobre o limite da estratégia para consultas amplas sobre milhões de registros.
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/real-s3-direcionamento.png}
+  \caption{Vazão das consultas no corpus real, por braço e número de \textit{shards}, em escala logarítmica, com o campo consultado entre parênteses. As barras trazem a média de três repetições e o desvio.}
+  \label{fig:res-real-s3}
+\end{figure}
