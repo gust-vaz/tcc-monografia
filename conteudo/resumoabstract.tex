@@ -3,43 +3,17 @@
 % para saber mais: https://tex.stackexchange.com/q/78101
 
 % As palavras-chave são obrigatórias, em português e em inglês, e devem ser
-% definidas antes do resumo/abstract. Acrescente quantas forem necessárias.
-\palavraschave{Palavra-chave1, Palavra-chave2, Palavra-chave3}
+% definidas antes do resumo/abstract.
+\palavraschave{evolução semântica, bancos de dados distribuídos, particionamento, replicação, MongoDB}
 
-\keywords{Keyword1,Keyword2,Keyword3}
+\keywords{semantic evolution, distributed databases, sharding, replication, MongoDB}
 
-% O resumo é obrigatório, em português e inglês. Estes comandos também
-% geram automaticamente a referência para o próprio documento, conforme
-% as normas sugeridas da USP.
+% O resumo é obrigatório, em português e inglês, em parágrafo único, com no
+% máximo 500 palavras, apresentando objetivos, métodos, resultados e conclusões.
 \resumo{
-Elemento obrigatório, constituído de uma sequência de frases concisas e
-objetivas, em forma de texto. Deve apresentar os objetivos, métodos empregados,
-resultados e conclusões. O resumo deve ser redigido em parágrafo único, conter
-no máximo 500 palavras e ser seguido dos termos representativos do conteúdo do
-trabalho (palavras-chave). Deve ser precedido da referência do documento.
-Texto texto texto texto texto texto texto texto texto texto texto texto texto
-texto texto texto texto texto texto texto texto texto texto texto texto texto
-texto texto texto texto texto texto texto texto texto texto texto texto texto
-texto texto texto texto texto texto texto texto texto texto texto texto texto
-texto texto texto texto texto texto texto texto texto texto texto texto texto
-texto texto texto texto texto texto texto texto.
-Texto texto texto texto texto texto texto texto texto texto texto texto texto
-texto texto texto texto texto texto texto texto texto texto texto texto texto
-texto texto texto texto texto texto texto texto texto texto texto texto texto
-texto texto texto texto texto texto texto texto texto texto texto texto texto
-texto texto.
+O MellowDB é um \textit{middleware} que gerencia a evolução semântica dos dados, as mudanças de significado ao longo do tempo, sobre um nó único do MongoDB, com duas estratégias de resolução, a reescrita de consultas (\textit{rewrite}) e o pré-processamento com versionamento (\textit{preprocess}). Este trabalho leva o MellowDB a ambientes distribuídos, a replicação e o particionamento, e mede o custo dessa transição. Implementou-se a replicação com a cadeia de versões autoritativa no primário, sob transação multidocumento, e as leituras distribuídas aos secundários, e o particionamento com a chave de \textit{shard}, a materialização das versões sobre uma coleção particionada e o tratamento de documentos sem o campo da chave. Uma campanha de \textit{benchmarks} em um \textit{cluster} na nuvem, sobre um corpus sintético de assimetria e cardinalidade controladas e um corpus real do DATASUS (transição da CID-9 para a CID-10), levou a duas conclusões. A primeira é que o compromisso entre as estratégias não tem vencedor fixo, pois o \textit{preprocess} predomina, mas a distribuição encurta a diferença e a profundidade da cadeia de evolução chega a invertê-la. A segunda é que, quando a chave de \textit{shard} recai sobre o campo que evolui, a operação realoca fisicamente os dados, e o desequilíbrio resultante pode ser irreparável ou impor um custo real de reequilíbrio, de modo que não é recomendado que a chave de \textit{shard} seja o campo que a evolução reescreve.
 }
 
 \abstract{
-Elemento obrigatório, elaborado com as mesmas características do resumo em
-língua portuguesa. De acordo com o Regimento da Pós-Graduação da USP (Artigo
-99), deve ser redigido em inglês para fins de divulgação. É uma boa ideia usar
-o sítio \url{www.grammarly.com} na preparação de textos em inglês.
-Text text text text text text text text text text text text text text text text
-text text text text text text text text text text text text text text text text
-text text text text text text text text text text text text text text text text
-text text text text text text text text text text text text.
-Text text text text text text text text text text text text text text text text
-text text text text text text text text text text text text text text text text
-text text text.
+MellowDB is a \textit{middleware} that manages semantic evolution in data, the changes in meaning over time, on a single MongoDB node, with two resolution strategies, query rewriting (\textit{rewrite}) and preprocessing with versioning (\textit{preprocess}). This work brings MellowDB to distributed environments, replication and partitioning, and measures the cost of this transition. Replication was implemented with the version chain authoritative on the primary, under a multidocument transaction, and reads offloaded to the secondaries, and partitioning with the \textit{shard} key, the materialization of the versions over a partitioned collection, and the handling of documents without the key field. A \textit{benchmark} campaign on a cloud \textit{cluster}, over a synthetic corpus with controlled skew and cardinality and a real corpus from DATASUS (the transition from CID-9 to CID-10), led to two conclusions. The first is that the trade-off between the strategies has no fixed winner, since \textit{preprocess} prevails, but distribution narrows the gap and the depth of the evolution chain can even invert it. The second is that, when the \textit{shard} key falls on the evolving field, the operation physically relocates the data, and the resulting imbalance may be irreparable or impose a real rebalancing cost, so that it is not recommended that the \textit{shard} key be the field that evolution rewrites.
 }
