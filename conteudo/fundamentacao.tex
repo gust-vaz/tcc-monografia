@@ -5,7 +5,7 @@ O objetivo deste capítulo é abordar as bases conceituais e técnicas que prece
 
 \section{Evolução de dados: esquema e semântica}
 \label{sec:evolucao}
-Coleções de dados que perduram por longos períodos podem não manter um mesmo significado, isto é, não há uma garantia de estabilidade. Um mesmo valor pode representar entidades distintas em épocas diferentes, ou uma mesma entidade pode ser representada de várias formas ao longo do tempo. Por exemplo, no caso do Brasil, o município de \textit{Moji Mirim} passou a ter a grafia de \textit{Mogi Mirim} em 2016, assim como o padrão de classificação de causas de óbito migrou da CID-9 para a CID-10 em 1996, alterando tanto os códigos quanto o agrupamento das doenças. Nesse cenário, uma consulta ingênua que filtre por um único nome ou código pode, por consequência, retornar apenas parte dos dados históricos. A Figura~\ref{fig:evolucao-semantica} ilustra esse tipo de mudança semântica.
+A evolução semântica caracteriza-se por uma mudança no significado dos dados sem que a sua estrutura se altere, ou seja, o mesmo campo permanece, com o mesmo nome e o mesmo tipo, mas aquilo que os seus valores representam passa a ser outro a partir de um certo momento. A tradução de \textit{Moji Mirim} para \textit{Mogi Mirim} (Figura~\ref{fig:evolucao-semantica}) troca um valor por outro, enquanto a transição da CID-9 para a CID-10 não apenas renomeia códigos, mas reorganiza o próprio agrupamento das doenças. Em ambos os casos, o efeito é que uma consulta formulada sobre uma única versão do significado recupera apenas parte dos registros históricos, pois os demais foram gravados sob termos que ela desconhece.
 
 \begin{figure}[htb]
   \centering

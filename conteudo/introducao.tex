@@ -1,4 +1,22 @@
 \chapter**{Introdução}
 \label{cap:introducao}
 
-bla bla
+Coleções de dados que perduram por longos períodos podem não manter um significado estável. Um mesmo valor pode designar entidades distintas em épocas diferentes, e uma mesma entidade pode ser registrada de formas diversas ao longo do tempo. O município de \textit{Moji Mirim} passou a ser grafado \textit{Mogi Mirim} em 2016, e a classificação de causas de óbito migrou da CID-9 para a CID-10 em 1996, alterando tanto os códigos quanto o agrupamento das doenças. Em bases históricas, uma consulta ingênua que filtre por um único nome ou código recupera apenas parte dos registros, pois ignora que o significado daquele termo mudou. Esse fenômeno, em que o sentido dos dados evolui enquanto a sua estrutura permanece a mesma, é conhecido como evolução semântica e é o problema central que motiva este trabalho.
+
+O MellowDB foi concebido para tratar exatamente essa dificuldade. Trata-se de uma biblioteca de \textit{middleware}, sobre um banco de dados orientado a documentos, que permite consultar uma coleção semanticamente heterogênea como se fosse homogênea, preservando a fidelidade das semânticas passadas. Para isso, registra as operações de evolução na forma de metadados e oferece estratégias de reescrita da consulta (\textit{rewrite}) e pré-processamento de registros (\textit{preprocess}). O sistema, porém, foi projetado para um banco de dados de nó único.
+
+As bases que mais se beneficiam do tratamento da evolução semântica são justamente as que perduram por décadas e crescem continuamente. Um volume de milhões de registros pressiona os limites de um único servidor, tanto em capacidade de armazenamento quanto em desempenho de consulta, e conduz naturalmente a duas técnicas de bancos de dados distribuídos, a replicação, que mantém cópias dos dados em vários nós, e o particionamento, que reparte a coleção entre eles. Levar a evolução semântica a esse ambiente, no entanto, permanece um problema em aberto.
+
+Este trabalho estende o MellowDB a ambientes distribuídos e caracteriza o custo dessa transição por meio de uma campanha de experimentos. De um lado, investiga-se o que acontece com o compromisso entre as estratégias \textit{rewrite} e \textit{preprocess} quando o sistema deixa de operar em um só nó e passa a operar distribuído, isto é, se a distribuição altera qual estratégia predomina e por quê. De outro, examina-se como a evolução semântica interage com o particionamento físico dos dados, já que uma operação que reescreve valores pode deslocar fisicamente os registros entre partições, o que faz da escolha da chave de \textit{shard} uma decisão de projeto crítica.
+
+As contribuições desta monografia são:
+\begin{itemize}
+  \item a extensão do MellowDB a \textit{replica sets}, que mantém a cadeia de versões íntegra e autoritativa no nó primário e oferece a replicação como ganho de durabilidade e de vazão de leitura;
+  \item a extensão do MellowDB a \textit{sharded clusters}, que abrange a declaração da chave de \textit{shard}, a materialização das versões sobre uma coleção particionada e o tratamento de documentos que não possuem o campo da chave;
+  \item um ferramental reproduzível para operar e avaliar o sistema, composto por uma interface de linha de comando, um arcabouço de \textit{benchmark} isolado e repetível e um caminho que leva os mesmos experimentos de uma simulação local a um \textit{cluster} real na nuvem;
+  \item uma campanha experimental que caracteriza as vantagens, desvantagens e decisões que implicam na distribuição dos dados no contexto semântico.
+\end{itemize}
+
+O escopo deste trabalho é o custo e o desempenho da distribuição, e não a consistência em si. Aspectos como a defasagem entre réplicas, o comportamento sob falha (\textit{failover}), os objetos aninhados e a evolução de esquema permanecem fora da avaliação.
+
+O restante do texto organiza-se da seguinte maneira. O Capítulo~\ref{cap:fundamentacao} apresenta as bases conceituais, a evolução semântica, o MellowDB e os fundamentos de bancos de dados distribuídos, com ênfase em como o MongoDB os concretiza. O Capítulo~\ref{cap:metodologia} descreve a contribuição de engenharia, as duas extensões e o ferramental que as opera, além do método experimental. O Capítulo~\ref{cap:resultados} reúne os resultados das duas séries de experimentos, de replicação e de particionamento, sobre um corpus sintético e um corpus real. Por fim, o Capítulo~\ref{cap:conclusao} retoma as respostas às perguntas levantadas e as limitações do estudo.
